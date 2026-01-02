@@ -4,7 +4,8 @@
 
 import sys
 from PyQt5.QtCore import QSharedMemory
-from src.app.gui import QApplication, MainWindow
+from src.app.gui import MainWindow
+from PyQt5.QtWidgets import QApplication
 
 
 
