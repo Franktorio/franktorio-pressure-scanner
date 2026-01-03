@@ -4,7 +4,7 @@
 
 import os
 
-VERSION = "0.0.0" # Application Version, 0.0.0 until first viable release
+VERSION = "INDEV" # Application Version, 0.0.0 until first viable release
 
 # API Configuration
 API_BASE_URL = os.getenv("API_BASE_URL")
@@ -14,3 +14,20 @@ RESIZE_MARGIN = 10
 MIN_WIDTH = 800
 MIN_HEIGHT = 600
 
+class SessionConfig:
+    """Configuration class for application settings"""
+    def __init__(self):
+        # Session settings
+        self.session_id = None # To be set when a session is created
+        self.session_password = None # To be set when a session is created
+
+    def set_session(self, session_id, session_password):
+        """Set session ID and password"""
+        self.session_id = session_id
+        self.session_password = session_password
+
+    def get_session(self):
+        """Get current session ID and password"""
+        return self.session_id, self.session_password
+
+session_config = SessionConfig()
