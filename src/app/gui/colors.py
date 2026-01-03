@@ -17,7 +17,7 @@ COLORS = {
     'button_inactive': '#2a2a2a',     # Button inactive background
     'button_text_active': '#ffffff',  # Button active text
     'button_text_inactive': '#7a7a7a',# Button inactive text
-    'toggled_on': '#4caf50',          # Toggle on color
+    'toggled_on': "#934caf",          # Toggle on color
 }
 
 
