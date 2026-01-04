@@ -3,7 +3,6 @@
 # January 2026
 
 from io import TextIOWrapper
-from pydoc import text
 
 
 class Stalker:

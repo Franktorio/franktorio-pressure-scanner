@@ -5,16 +5,12 @@
 import datetime
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QPushButton,
-    QVBoxLayout, QHBoxLayout, QGridLayout, QSizePolicy, QDialog, QInputDialog,
-    QLineEdit, QComboBox, QCheckBox, QRadioButton, QSlider, QProgressBar,
-    QSpinBox, QDoubleSpinBox, QGroupBox, QTabWidget, QListWidget, QTableWidget,
-    QTableWidgetItem, QScrollArea, QFrame,
+    QApplication, QMainWindow,
 )
-from PyQt5.QtCore import Qt, QPoint, pyqtSignal
-from PyQt5.QtGui import QFont, QCursor, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QPixmap
 
-from config.vars import MIN_WIDTH, MIN_HEIGHT, RESIZE_MARGIN
+from config.vars import MIN_WIDTH, MIN_HEIGHT
 from .colors import COLORS, convert_style_to_qss
 from .window_controls import WindowControlsMixin
 from .widgets import WidgetSetupMixin
