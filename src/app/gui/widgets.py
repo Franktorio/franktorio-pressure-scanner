@@ -67,18 +67,70 @@ class WidgetSetupMixin:
         """Helper function to layout server info labels dynamically"""
         if not hasattr(self, 'server_country_label'):
             return
-            
+        
+        self.server_info_title.adjustSize()
         self.server_country_label.adjustSize()
         self.server_region_label.adjustSize()
         self.server_city_label.adjustSize()
 
         self.server_info_layout.setContentsMargins(10, 10, 10, 10)
         
+        self.server_info_title.move(
+            (self.server_info_widget.width() - self.server_info_title.width()) // 2,
+            10
+        )
         self.server_country_label.move(10, int(1/3 * self.server_info_widget.height()) - self.server_country_label.height())
         self.server_region_label.move(10, int(2/3 * self.server_info_widget.height() - self.server_region_label.height()))
         self.server_city_label.move(10, int(self.server_info_widget.height() - self.server_city_label.height()))
         # Push labels to the top
         self.server_info_layout.addStretch()
+
+    def _layout_console_widget_elements(self):
+        """Helper function to layout console widget elements dynamically"""
+        if not hasattr(self, 'console_text_area'):
+            return
+        
+        widget_width = self.main_console_widget.width()
+        widget_height = self.main_console_widget.height()
+        
+        # Button dimensions
+        button_width = int(100 * self.dpi_scale)
+        button_height = int(30 * self.dpi_scale)
+        button_spacing = int(10 * self.dpi_scale)
+        margin = 10
+        
+        # Position buttons on the right side, stacked vertically
+        button_x = widget_width - button_width - margin
+        
+        self.clear_console_button.setGeometry(
+            button_x, 
+            margin, 
+            button_width, 
+            button_height
+        )
+        
+        self.copy_console_button.setGeometry(
+            button_x, 
+            margin + button_height + button_spacing, 
+            button_width, 
+            button_height
+        )
+        
+        self.set_log_dir_button.setGeometry(
+            button_x, 
+            margin + 2 * (button_height + button_spacing), 
+            button_width, 
+            button_height
+        )
+        
+        # Console text area takes the remaining space on the left
+        console_width = button_x - 2 * margin
+        self.console_text_area.setGeometry(
+            margin, 
+            margin, 
+            console_width, 
+            widget_height - 2 * margin
+        )
 
     def _update_widget_sizes(self):
         """Update all widget sizes when window is resized"""
@@ -120,11 +172,8 @@ class WidgetSetupMixin:
         # Layout server info labels
         self._layout_server_info_labels()
 
-        # Update console text area size
-        if hasattr(self, 'console_text_area'):
-            self.console_text_area.setGeometry(10, 10, 
-                                              self.main_console_widget.width() - 20, 
-                                              self.main_console_widget.height() - 20)
+        # Layout console widget elements
+        self._layout_console_widget_elements()
     
     def setup_title_bar(self):
         """Setup custom title bar with close, minimize, maximize buttons"""
@@ -421,6 +470,9 @@ class WidgetSetupMixin:
                     "color": COLORS['text'],
                     "border":  f"1px solid {COLORS['border']}",
                     "border-radius": "5px"
+                },
+                "#serverInfoTitle QLabel": {
+                    "padding-bottom": "5px"
                 }
             }
         }
@@ -434,8 +486,14 @@ class WidgetSetupMixin:
 
         font = QFont("Segoe UI", int(11 * self.dpi_scale))
 
-        # Setup three labels to represent server info
+        # Setup four labels to represent server info
         self.server_info_layout = QVBoxLayout(self.server_info_widget)
+
+        self.server_info_title = QLabel("<b>Server Information</b>", self.server_info_widget)
+        self.server_info_title.setFont(font)
+        self.server_info_title.setObjectName("serverInfoTitle")
+        self.server_info_title.setAlignment(Qt.AlignCenter)
+        self.server_info_layout.addWidget(self.server_info_title)
 
         self.server_country_label = QLabel("<b>Country:</b> N/A", self.server_info_widget)
         self.server_country_label.setFont(font)
@@ -473,6 +531,25 @@ class WidgetSetupMixin:
                 "#mainConsoleWidget QScrollBar": {
                     "width": "0px",
                     "height": "0px"
+                },
+                "#mainConsoleWidget QPushButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": f"{5 * self.dpi_scale}px",
+                    "padding": "5px",
+                    "font-size": f"{10 * self.dpi_scale}px",
+                    "font-weight": "500"
+                },
+                "#mainConsoleWidget QPushButton:hover": {
+                    "background-color": COLORS['button_hover']
+                },
+                "#mainConsoleWidget QPushButton:pressed": {
+                    "background-color": COLORS['button_inactive']
+                },
+                "#mainConsoleWidget QPushButton:disabled": {
+                    "color": COLORS['button_text_inactive'],
+                    "background-color": COLORS['button_inactive']
                 }
             }
         }
@@ -489,8 +566,21 @@ class WidgetSetupMixin:
         # Setup console text area
         self.console_text_area = QTextEdit(f"Scanner version: {VERSION}", self.main_console_widget)
         self.console_text_area.setFont(font)
-        self.console_text_area.setGeometry(10, 10, self.main_console_widget.width() - 20, self.main_console_widget.height() - 20)
+        self.console_text_area.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.console_text_area.setReadOnly(True)
+
+        # Create console control buttons
+        self.clear_console_button = QPushButton("Clear", self.main_console_widget)
+        self.clear_console_button.setFont(font)
+
+        self.copy_console_button = QPushButton("Copy", self.main_console_widget)
+        self.copy_console_button.setFont(font)
+
+        self.set_log_dir_button = QPushButton("Set Log Dir", self.main_console_widget)
+        self.set_log_dir_button.setFont(font)
+        
+        # Layout console elements
+        self._layout_console_widget_elements()
 
     def _exit_button_clicked(self):
         """Handle exit button click"""
