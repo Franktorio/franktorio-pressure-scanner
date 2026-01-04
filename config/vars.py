@@ -2,15 +2,10 @@
 # Configuration Variables
 # December 2025
 
-import os
-import dotenv
-
 VERSION = "1.0.0" # Application Version
 
-# API Configuration
-dotenv.load_dotenv(dotenv_path="config/.env")  # Load environment variables from .env file
-
-API_BASE_URL = os.getenv("API_BASE_URL")
+# API Base URL for the application
+API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
 
 # GUI Configuration
 RESIZE_MARGIN = 5

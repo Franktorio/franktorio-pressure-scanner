@@ -28,5 +28,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Franktorio Research Scanner
-          path: dist/franktorio-research-scanner
+          path: dist/franktorio-research-scanner.exe
 
