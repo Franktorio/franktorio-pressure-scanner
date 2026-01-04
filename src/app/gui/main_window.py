@@ -3,9 +3,10 @@
 # December 2025
 
 import datetime
+import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow,
+    QApplication, QMainWindow, QFileDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
@@ -19,6 +20,7 @@ from src.app.scanner.scanner import Scanner
 from src.api.scanner import RoomInfo
 from src.api.images import download_images
 
+from src.app.user_data.appdata import set_value_in_config
 
 class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     # Define signals
@@ -104,12 +106,20 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.persistent_window_button.clicked.connect(self.on_persistent_window_button_toggled)
         self.prev_image_button.clicked.connect(self.on_backward_image_button_clicked)
         self.next_image_button.clicked.connect(self.on_forward_image_button_clicked)
+        
+        # Connect console button signals
+        self.clear_console_button.clicked.connect(self.on_clear_console_clicked)
+        self.copy_console_button.clicked.connect(self.on_copy_console_clicked)
+        self.set_log_dir_button.clicked.connect(self.on_set_log_dir_clicked)
+
+        # Emit empty log message
+        self.log_console_message.emit(f"")
 
     def on_log_console_message(self, message: str):
         """Slot to handle logging messages to console"""
         MAX_CHARS = 5000
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        formatted_message = f"\n[{now}] {message}"
+        now = ""  if message == "" else f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
+        formatted_message = f"{now} {message}\n"
         self.console_text_area.setText(self.console_text_area.toPlainText()[-MAX_CHARS:] + formatted_message) # Keep last MAX_CHARS chars
         self.console_text_area.verticalScrollBar().setValue(self.console_text_area.verticalScrollBar().maximum()) # Auto-scroll to bottom
 
@@ -133,8 +143,8 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         """Slot to handle room info updates"""
         room_name = room_info.room_name if room_info.room_name else "N/A"
         roomtype = room_info.roomtype if room_info.roomtype else "N/A"
-        description = room_info.description[:200] if room_info.description else "N/A"
-        tags = ", ".join(room_info.tags)[:30] if room_info.tags else "N/A"
+        description = room_info.description if room_info.description else "N/A"
+        tags = ", ".join(room_info.tags) if room_info.tags else "N/A"
         
         self.room_name_label.setText(f"<b>Room:</b> {room_name}")
         self.room_type_label.setText(f"<b>Type:</b> {roomtype}")
@@ -261,3 +271,27 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             msg_box.exec_()
         else:
             self.log_console_message.emit(f"Running latest version: {VERSION}")
+    
+    def on_clear_console_clicked(self):
+        """Slot to handle clear console button click"""
+        self.console_text_area.clear()
+        self.log_console_message.emit(f"Console cleared (version: {VERSION})")
+    
+    def on_copy_console_clicked(self):
+        """Slot to handle copy console button click"""
+        console_text = self.console_text_area.toPlainText()
+        clipboard = QApplication.clipboard()
+        clipboard.setText(console_text)
+        self.log_console_message.emit("Console text copied to clipboard")
+    
+    def on_set_log_dir_clicked(self):
+        """Slot to handle set log directory button click"""
+        
+        dir_path = QFileDialog.getExistingDirectory(self, "Select Log Directory", os.path.expanduser("~"))
+        
+        if dir_path:
+            set_value_in_config("log_directory", dir_path)
+            self.log_console_message.emit(f"Log directory set to: {dir_path}")
+        else:
+            set_value_in_config("log_directory", '')
+            self.log_console_message.emit("Log directory selection cancelled, defaulting to Automatic Detection")
