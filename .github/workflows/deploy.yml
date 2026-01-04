@@ -22,11 +22,11 @@ jobs:
           pip install pyinstaller
 
       - name: Build EXE
-        run: pyinstaller --onefile --windowed main.py --name "Franktorio Pressure Scanner" --icon=config/images/researchfrankbadge.ico
+        run: pyinstaller --onefile --windowed main.py --name "franktorio-research-scanner" --icon=config/images/researchfrankbadge.ico
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Franktorio Pressure Scanner
-          path: dist/Franktorio_Pressure_Scanner.exe
+          name: Franktorio Research Scanner
+          path: dist/franktorio-research-scanner
 
