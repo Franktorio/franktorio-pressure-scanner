@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
-from config.vars import MIN_WIDTH, MIN_HEIGHT
+from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION
 from .colors import COLORS, convert_style_to_qss
 from .window_controls import WindowControlsMixin
 from .widgets import WidgetSetupMixin
@@ -27,6 +27,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     update_start_scan_button_state = pyqtSignal(bool)  # Signal to update scan button state
     update_stop_scan_button_state = pyqtSignal(bool)   # Signal to update stop button state
     log_console_message = pyqtSignal(str)  # Signal to log messages to console
+    version_check_ready = pyqtSignal(str)  # Signal when version check completes with latest version
     
     def __init__(self):
         super().__init__()
@@ -64,10 +65,12 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.update_start_scan_button_state.connect(self.on_update_start_scan_button_state)
         self.update_stop_scan_button_state.connect(self.on_update_stop_scan_button_state)
         self.log_console_message.connect(self.on_log_console_message)
+        self.version_check_ready.connect(self.on_version_check_ready)
 
         # Scanner object placeholder
         self.scanner = Scanner()
         self.setup_scanner()
+            
     
     def _get_dpi_scale(self):
         """Calculate DPI scaling factor"""
@@ -90,6 +93,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.scanner.set_start_button_signal(self.update_start_scan_button_state)
         self.scanner.set_stop_button_signal(self.update_stop_scan_button_state)
         self.scanner.set_log_console_message_signal(self.log_console_message)
+        self.scanner.set_version_check_ready_signal(self.version_check_ready)
 
         # Disable stop scan button initially
         self.stop_scan_button.setEnabled(False)
@@ -232,3 +236,28 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     def on_update_stop_scan_button_state(self, enabled):
         """Slot to handle stop scan button state updates"""
         self.stop_scan_button.setEnabled(enabled)
+
+    def on_version_check_ready(self, latest_version: str):
+        """Slot to handle version check completion"""
+        if not latest_version or latest_version == "unknown":
+            self.log_console_message.emit("Version check completed (unable to retrieve latest version)")
+            return
+        
+        if latest_version != VERSION:
+            from PyQt5.QtWidgets import QMessageBox
+            self.log_console_message.emit(f"New version available: {latest_version} (current: {VERSION})")
+            
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle("Update Available")
+            msg_box.setTextFormat(Qt.RichText)
+            msg_box.setText(
+                f"A new version of Franktorio Research Scanner is available!<br><br>"
+                f"Current version: {VERSION}<br>"
+                f"Latest version: {latest_version}<br><br>"
+                f"Please visit <a href=\"https://github.com/Franktorio/franktorio-pressure-scanner\">the repository</a> to download the latest version."
+            )
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.exec_()
+        else:
+            self.log_console_message.emit(f"Running latest version: {VERSION}")

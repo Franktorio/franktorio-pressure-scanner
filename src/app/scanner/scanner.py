@@ -5,8 +5,8 @@
 import asyncio
 import threading
 
-from config.vars import session_config
-from src.api.scanner import request_session, end_session, room_encountered, RoomInfo
+from config.vars import session_config, VERSION
+from src.api.scanner import request_session, end_session, room_encountered, RoomInfo, check_scanner_version
 from src.app.scanner.stalker import Stalker, observe_logfile_changes
 from src.app.scanner.parser import parse_log_lines
 from src.app.scanner.log_finder import get_latest_logfile_path
@@ -28,6 +28,9 @@ class Scanner:
         self.current_path = None  # Current log file path being monitored
         self.last_scanned_path = None  # Last scanned log file path
 
+        version_thread = threading.Thread(target=self._run_version_check_loop, daemon=True)
+        version_thread.start()
+
     def start(self):
         """Start the scanning task in a separate thread."""
         if self.thread is None or not self.thread.is_alive():
@@ -43,6 +46,12 @@ class Scanner:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.scanner_loop())
+
+    def _run_version_check_loop(self):
+        """Run version check in separate thread with its own event loop."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.version_check_loop())
 
     def stop(self):
         """Stop the scanning task."""
@@ -104,7 +113,8 @@ class Scanner:
             'update_server_info',
             'update_room_info',
             'update_start_button',
-            'update_stop_button'
+            'update_stop_button',
+            'version_check_ready'
         ]
         for signal_name in required_signals:
             if not hasattr(self, signal_name):
@@ -203,7 +213,25 @@ class Scanner:
     def set_log_console_message_signal(self, signal):
         """Set the signal for logging messages to console."""
         self.log_console_message = signal
-            
+
+    def set_version_check_ready_signal(self, signal):
+        """Set the signal for version check ready notification."""
+        self.version_check_ready = signal
+
+    async def version_check_loop(self):
+        """Wait for scanner to be ready, then perform version check."""
+        while not self._validate_signals_setup():
+            await asyncio.sleep(0.1)
+        
+        try:
+            self._log_console_message("Performing version check...")
+            latest_version = await check_scanner_version()
+            if hasattr(self, 'version_check_ready'):
+                self.version_check_ready.emit(latest_version)
+        except Exception as e:
+            self._log_console_message(f"Version check failed: {e}")
+            if hasattr(self, 'version_check_ready'):
+                self.version_check_ready.emit("")  # Emit empty string on failure
 
 
 

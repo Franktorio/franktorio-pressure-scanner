@@ -9,6 +9,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import QApplication
 
+from config.vars import VERSION
+
 from .colors import COLORS, convert_style_to_qss
 
 
@@ -178,7 +180,7 @@ class WidgetSetupMixin:
         title_layout.setSpacing(10)
 
         # Create label
-        self.title_label = QLabel("Franktorio's Research Scanner", self.title_bar)
+        self.title_label = QLabel(f"Franktorio's Research Scanner", self.title_bar)
         self.title_label.setObjectName("titleBarLabel")
 
         # Create font and adjust letter spacing
@@ -258,6 +260,12 @@ class WidgetSetupMixin:
                 },
                 "#imagesWidget QPushButton:pressed": {
                     "background-color": COLORS['button_inactive']
+                },
+                "#imagesWidget QLabel#imageCounterLabel": {
+                    "background-color": COLORS['surface_light'],
+                    "color": COLORS['text'],
+                    "border": "none",
+                    "padding": "3px"
                 }
             }
         }
@@ -279,6 +287,7 @@ class WidgetSetupMixin:
         # Add image counter label
         font = QFont("Segoe UI", int(11 * self.dpi_scale))
         self.image_counter_label = QLabel("0/0", self.images_widget)
+        self.image_counter_label.setObjectName("imageCounterLabel")
         self.image_counter_label.setFont(font)
         self.image_counter_label.setAlignment(Qt.AlignCenter)
 
@@ -478,7 +487,7 @@ class WidgetSetupMixin:
         font = QFont("Segoe UI", int(10 * self.dpi_scale))
 
         # Setup console text area
-        self.console_text_area = QTextEdit("Console output will appear here...\n", self.main_console_widget)
+        self.console_text_area = QTextEdit(f"Scanner version: {VERSION}", self.main_console_widget)
         self.console_text_area.setFont(font)
         self.console_text_area.setGeometry(10, 10, self.main_console_widget.width() - 20, self.main_console_widget.height() - 20)
         self.console_text_area.setReadOnly(True)

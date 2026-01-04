@@ -5,7 +5,7 @@
 import os
 import dotenv
 
-VERSION = "INDEV" # Application Version, INDEV until first viable release
+VERSION = "1.0.0" # Application Version
 
 # API Configuration
 dotenv.load_dotenv(dotenv_path="config/.env")  # Load environment variables from .env file

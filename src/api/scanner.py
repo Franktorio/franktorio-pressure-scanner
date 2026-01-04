@@ -24,6 +24,21 @@ def _run_in_executor(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return loop.run_in_executor(None, func, *args, **kwargs)
 
+def _check_scanner_version() -> str:
+    """Check if the scanner version is up to date"""
+    try:
+        resp = requests.post(
+            f"{API_BASE_URL}/check_version",
+            json={"scanner_version": VERSION},
+            timeout=_REQ_TIMEOUT
+        )
+        data = resp.json()
+        print(data)
+        return data.get("latest_version", "unknown")
+    except (requests.RequestException, ValueError, KeyError) as e:
+        print(f"Error checking scanner version: {e}")
+        return False
+
 def _request_session() -> bool:
     """Request a new session from the API"""
     try:
@@ -143,3 +158,6 @@ async def room_encountered(room_name: str, log_event: bool) -> tuple[bool, RoomI
     
     return logged, room_info
     
+async def check_scanner_version() -> str:
+    """Asynchronously check if the scanner version is up to date"""
+    return await _run_in_executor(_check_scanner_version)

@@ -2,7 +2,7 @@
 # Main Entry Point
 # December 2025
 
-from email.charset import QP
+import os
 import sys
 from PyQt5.QtCore import QSharedMemory
 from src.app.gui import MainWindow
@@ -23,10 +23,13 @@ shared_memory.attach()
 window = MainWindow()
 window.show()
 
-app_icon_path = "config/images/researchfrankbadge.ico"
+# Load application icon config\images\researchfrankbadge.ico
+app_icon_path = os.path.join("config", "images", "researchfrankbadge.ico")
 
 # Turn png into QIcon
 app_icon = QIcon(app_icon_path)
+
+# Place QIcon
 app.setWindowIcon(app_icon)
 
 try:
