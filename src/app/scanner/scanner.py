@@ -9,7 +9,7 @@ from config.vars import session_config, VERSION
 from src.api.scanner import request_session, end_session, room_encountered, RoomInfo, check_scanner_version
 from src.app.scanner.stalker import Stalker, observe_logfile_changes
 from src.app.scanner.parser import parse_log_lines
-from src.app.scanner.log_finder import get_latest_logfile_path
+from src.app.scanner.log_finder import get_latest_log_file_path
 
 class Scanner:
     """Scanner object to manage the scanning task."""
@@ -140,7 +140,7 @@ class Scanner:
             # Ensure we have a log file path
             if not self.current_path:
                 try:
-                    self.current_path = get_latest_logfile_path()
+                    self.current_path = get_latest_log_file_path()
                     self.stalker.file_position = 0  # Reset file position for new log file
                     self._log_console_message(f"Monitoring log file: {self.current_path}")
                 except (EnvironmentError, FileNotFoundError) as e:
@@ -158,7 +158,7 @@ class Scanner:
             if not new_lines:
                 _no_new_lines_accumulator += 1
                 if _no_new_lines_accumulator >= 50:
-                    latest_file = get_latest_logfile_path()
+                    latest_file = get_latest_log_file_path()
                     if latest_file != self.current_path:
                         self.current_path = latest_file
                         self.stalker.file_position = 0  # Reset file position for new log file
