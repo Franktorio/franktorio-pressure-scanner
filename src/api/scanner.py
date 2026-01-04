@@ -2,7 +2,6 @@
 # Scanner endpoint API
 # Jan 2026
 
-import threading
 import asyncio
 import requests
 from config.vars import API_BASE_URL, session_config, VERSION
@@ -21,8 +20,6 @@ class RoomInfo:
         self.doc_by_user_id: int = kwargs.get("doc_by_user_id", -1)
         self.edits: list[dict] = kwargs.get("edits", []) # List of edit records, not used
 
-config_lock = threading.Lock() # All API calls must acquire this lock and thus they must be run in threadsafe executors
-
 def _run_in_executor(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return loop.run_in_executor(None, func, *args, **kwargs)
@@ -37,9 +34,8 @@ def _request_session() -> bool:
         )
         data = resp.json()
 
-        with config_lock:
-            session_config.set_session(data["session_id"], data["password"])
-
+        session_config.set_session(data["session_id"], data["password"])
+        
         return data.get("success", False)
     except (requests.RequestException, ValueError, KeyError) as e:
         print(f"Error requesting session: {e}")
@@ -48,25 +44,31 @@ def _request_session() -> bool:
 def _end_session() -> bool:
     """End the current session"""
     try:
-        with config_lock:
-            session_id, password = session_config.get_session()
-
+        session_id, password = session_config.get_session()
+        
         resp = requests.post(
             f"{API_BASE_URL}/end_session",
             json={"session_id": session_id, "password": password},
             timeout=_REQ_TIMEOUT
         )
         data = resp.json()
-        return data.get("success", False)
+        success = data.get("success", False)
+        return success
     except (requests.RequestException, ValueError, KeyError) as e:
         print(f"Error ending session: {e}")
         return False
 
 def _get_room_info(room_name: str) -> RoomInfo | None:
-    """Get room information from the API"""
+    """
+    Get room information from the API
+    
+    Returns:
+        tuple[RoomInfo | None, bool]: (room_info, had_error)
+            - room_info: Room information if successful, None otherwise
+            - had_error: True if there was a connection/auth error, False if room just doesn't exist
+    """
     try:
-        with config_lock:
-            session_id, password = session_config.get_session()
+        session_id, password = session_config.get_session()
         
         resp = requests.post(
             f"{API_BASE_URL}/get_roominfo",
@@ -79,19 +81,29 @@ def _get_room_info(room_name: str) -> RoomInfo | None:
         )
         data = resp.json()
         if data.get("success"):
-            return RoomInfo(**data)
+            # Ensure room_name is included in the response data
+            room_info_data = data["room_info"]
+            room_info_data["room_name"] = room_name
+            return RoomInfo(**room_info_data)
         else:
-            return None
+            # Return RoomInfo with only the room name + (Undocumented) next to it
+            return RoomInfo(room_name=f"{room_name} (Undocumented)")
     except (requests.RequestException, ValueError, KeyError) as e:
         print(f"Error getting room info for {room_name}: {e}")
         return None
 
 def _log_room_encounter(room_name: str) -> bool:
-    """Log that a room has been encountered"""
+    """
+    Log that a room has been encountered
+    
+    Returns:
+        tuple[bool, bool]: (success, had_error)
+            - success: True if encounter was logged successfully
+            - had_error: True if there was a connection/auth error, False otherwise
+    """
     try:
-        with config_lock:
-            session_id, password = session_config.get_session()
-
+        session_id, password = session_config.get_session()
+        
         resp = requests.post(
             f"{API_BASE_URL}/room_encountered",
             json={
@@ -102,11 +114,12 @@ def _log_room_encounter(room_name: str) -> bool:
             timeout=_REQ_TIMEOUT
         )
         data = resp.json()
-        return data.get("success", False)
+        success = data.get("success", False)
+        return success
     except (requests.RequestException, ValueError, KeyError) as e:
         print(f"Error logging room encounter for {room_name}: {e}")
         return False
-
+    
 async def request_session() -> bool:
     """Asynchronously request a new session from the API"""
     return await _run_in_executor(_request_session)
@@ -115,24 +128,18 @@ async def end_session() -> bool:
     """Asynchronously end the current session"""
     return await _run_in_executor(_end_session)
 
-async def room_encountered(room_name: str) -> tuple[bool, RoomInfo | None]:
+async def room_encountered(room_name: str, log_event: bool) -> tuple[bool, RoomInfo | None]:
     """Asynchronously get room info and log the encounter"""
-
     # Get coroutines to run in executor
-    logged =  _run_in_executor(_log_room_encounter, room_name)
-    room_info =  _run_in_executor(_get_room_info, room_name)
+    if log_event:
+        logged_task =  _run_in_executor(_log_room_encounter, room_name)
+        room_info_task =  _run_in_executor(_get_room_info, room_name)
 
-    # Run both tasks concurrently
-    logged, room_info = await asyncio.gather(logged, room_info)
-
-    # Edge case: if room info was retrieved but logging failed, get a new session and retry logging
-    if room_info and not logged:
-        success = await request_session()
-
-        if not success:
-            return False, room_info
-        
-        logged = await _run_in_executor(_log_room_encounter, room_name)
-
+        # Run both tasks concurrently
+        logged, room_info = await asyncio.gather(logged_task, room_info_task)
+    else:
+        room_info = await _run_in_executor(_get_room_info, room_name)
+        logged = False
+    
     return logged, room_info
     
