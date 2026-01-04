@@ -9,6 +9,8 @@ from src.app.gui import MainWindow
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon
 
+from src.app.user_data.appdata import setup_user_data, get_value_from_config
+
 app = QApplication(sys.argv)
 app.setApplicationName("Franktorio Research Scanner")
 app.setApplicationDisplayName("Franktorio Research Scanner")
@@ -19,6 +21,8 @@ if not shared_memory.create(1):
     print("Another instance is already running. Exiting...")
     sys.exit(0)
 shared_memory.attach()
+
+setup_user_data()
 
 window = MainWindow()
 window.show()
@@ -31,6 +35,10 @@ app_icon = QIcon(app_icon_path)
 
 # Place QIcon
 app.setWindowIcon(app_icon)
+
+# Emit config values to GUI
+log_directory = get_value_from_config("log_directory", "Automatic Detection")
+window.log_console_message.emit(f"Log directory from config: {log_directory}")
 
 try:
     sys.exit(app.exec_())
