@@ -28,4 +28,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Franktorio Pressure Scanner
-          path: dist/franktorio-pressure-scanner.exe
+          path: dist/Franktorio_Pressure_Scanner.exe
+
