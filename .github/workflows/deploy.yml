@@ -23,11 +23,12 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --windowed main.py --name franktorio-pressure-scanner --icon=config/images/researchfrankbadge.ico
-        working-directory: src/app
+          pyinstaller --onefile --windowed main.py \
+            --name franktorio-pressure-scanner \
+            --icon=config/images/researchfrankbadge.ico
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: Franktorio Pressure Scanner
-          path: src/app/dist/franktorio-pressure-scanner.exe
+          path: dist/franktorio-pressure-scanner.exe
