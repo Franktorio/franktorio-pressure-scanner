@@ -60,11 +60,15 @@ class WindowControlsMixin:
         
         # Update cursor based on position
         if not self.resizing:
-            edge = self._get_resize_edge(event.pos())
-            if edge:
-                self._set_resize_cursor(edge)
-            else:
+            # Check if mouse is on title bar first
+            if self.title_bar.geometry().contains(event.pos()):
                 self.setCursor(Qt.ArrowCursor)
+            else:
+                edge = self._get_resize_edge(event.pos())
+                if edge:
+                    self._set_resize_cursor(edge)
+                else:
+                    self.setCursor(Qt.ArrowCursor)
         
         super().mouseMoveEvent(event)
 
