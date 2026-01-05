@@ -37,7 +37,7 @@ app_icon = QIcon(app_icon_path)
 app.setWindowIcon(app_icon)
 
 # Emit config values to GUI
-log_directory = get_value_from_config("log_directory", "Automatic Detection")
+log_directory = get_value_from_config("set_log_path", "Automatic Detection")
 window.log_console_message.emit(f"Log directory from config: {log_directory}")
 
 try:
