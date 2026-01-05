@@ -309,8 +309,8 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Log Directory", os.path.expanduser("~"))
         
         if dir_path:
-            set_value_in_config("log_directory", dir_path)
+            set_value_in_config("set_log_path", dir_path)
             self.log_console_message.emit(f"Log directory set to: {dir_path}")
         else:
-            set_value_in_config("log_directory", '')
+            set_value_in_config("set_log_path", '')
             self.log_console_message.emit("Log directory selection cancelled, defaulting to Automatic Detection")
