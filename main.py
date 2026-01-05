@@ -2,7 +2,6 @@
 # Main Entry Point
 # December 2025
 
-import os
 import sys
 from PyQt5.QtCore import QSharedMemory
 from src.app.gui import MainWindow
@@ -10,6 +9,8 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon
 
 from src.app.user_data.appdata import setup_user_data, get_value_from_config
+setup_user_data()
+from config.vars import APP_ICON_PATH
 
 app = QApplication(sys.argv)
 app.setApplicationName("Franktorio Research Scanner")
@@ -22,16 +23,13 @@ if not shared_memory.create(1):
     sys.exit(0)
 shared_memory.attach()
 
-setup_user_data()
 
 window = MainWindow()
 window.show()
 
-# Load application icon config\images\researchfrankbadge.ico
-app_icon_path = os.path.join("config", "images", "researchfrankbadge.ico")
 
 # Turn png into QIcon
-app_icon = QIcon(app_icon_path)
+app_icon = QIcon(APP_ICON_PATH)
 
 # Place QIcon
 app.setWindowIcon(app_icon)

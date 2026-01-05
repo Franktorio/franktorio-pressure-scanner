@@ -4,21 +4,22 @@
 
 # Color Palette
 COLORS = {
-    'background': "#1f1f1f",          # Main background
-    'surface': "#252525",             # Surface/panel color
-    'surface_light': "#333333",       # Lighter surface variant
-    'titlebar': '#1e1e1e',            # Title bar background
-    'border': "#8F8F8F",              # Border color
-    'accent': '#5a5a5a',              # Accent color
-    'text': '#e0e0e0',                # Primary text
-    'text_secondary': '#b0b0b0',      # Secondary text
-    'button_bg': '#3a3a3a',           # Button background
-    'button_hover': '#505050',        # Button hover background
-    'button_inactive': '#2a2a2a',     # Button inactive background
-    'button_text_active': '#ffffff',  # Button active text
-    'button_text_inactive': '#7a7a7a',# Button inactive text
-    'toggled_on': "#934caf",          # Toggle on color
+    'background': "#120f1a",          # Main background
+    'surface': "#1a1426",             # Surface/panel color
+    'surface_light': "#241c33",       # Lighter surface variant
+    'titlebar': "#0e0b14",            # Title bar background
+    'border': "#3a2f52",              # Border color
+    'accent': "#6f4bb8",              # Accent color (purple)
+    'text': "#e6e1f0",                # Primary text
+    'text_secondary': "#b8aecf",      # Secondary text
+    'button_bg': "#2a2040",           # Button background
+    'button_hover': "#3a2b5c",        # Button hover background
+    'button_inactive': "#1a1426",     # Button inactive background
+    'button_text_active': "#ffffff",  # Button active text
+    'button_text_inactive': "#7f7399",# Button inactive text
 }
+
+
 
 
 def convert_style_to_qss(style_dict):

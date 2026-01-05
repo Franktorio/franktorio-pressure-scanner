@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import QApplication
 
-from config.vars import VERSION
+from config.vars import VERSION, APP_ICON_PATH
 
 from .colors import COLORS, convert_style_to_qss
 
@@ -47,7 +47,7 @@ class WidgetSetupMixin:
         # Buttons and counter label at bottom (remaining 10%)
         button_area_top = image_height
         button_area_height = widget_height - image_height
-        button_size = min(int(40 * self.dpi_scale), button_area_height - 10)
+        button_size = int(30 * self.dpi_scale)
         
         # Center buttons vertically in the bottom area
         button_y = button_area_top + (button_area_height - button_size) // 2
@@ -55,13 +55,13 @@ class WidgetSetupMixin:
         self.prev_image_button.setGeometry(10, button_y, button_size, button_size)
         self.next_image_button.setGeometry(widget_width - button_size - 10, button_y, button_size, button_size)
         
-        # Image counter label in the middle
-        if hasattr(self, 'image_counter_label'):
-            self.image_counter_label.adjustSize()
-            counter_width = self.image_counter_label.width()
-            counter_x = (widget_width - counter_width) // 2
-            counter_y = button_area_top + (button_area_height - self.image_counter_label.height()) // 2
-            self.image_counter_label.move(counter_x, counter_y)
+        
+        image_label_size = int(20 * self.dpi_scale)
+        self.image_counter_label.setFixedSize(image_label_size * 4, image_label_size)
+        counter_width = self.image_counter_label.width()
+        counter_x = (widget_width - counter_width) // 2
+        counter_y = button_area_top + (button_area_height - self.image_counter_label.height()) // 2
+        self.image_counter_label.move(counter_x, counter_y)
     
     def _layout_server_info_labels(self):
         """Helper function to layout server info labels dynamically"""
@@ -228,9 +228,23 @@ class WidgetSetupMixin:
         title_layout.setContentsMargins(15, 0, 5, 0)
         title_layout.setSpacing(10)
 
+        # Put a small square with the application icon on the left
+        self.app_icon_label = QLabel(self.title_bar)
+        self.app_icon_label.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        pixmap = QPixmap(APP_ICON_PATH)
+        scaled_pixmap = pixmap.scaled(
+            self.app_icon_label.width(),
+            self.app_icon_label.height(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation
+        )
+        self.app_icon_label.setPixmap(scaled_pixmap)
+        title_layout.addWidget(self.app_icon_label)
+
         # Create label
         self.title_label = QLabel(f"Franktorio's Research Scanner", self.title_bar)
         self.title_label.setObjectName("titleBarLabel")
+        self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
         # Create font and adjust letter spacing
         font = QFont("OCR A Extended", int(12 * self.dpi_scale), QFont.Bold)
@@ -341,12 +355,8 @@ class WidgetSetupMixin:
         self.image_counter_label.setAlignment(Qt.AlignCenter)
 
         # Add back and forward buttons to cycle through images
-        button_size = int(30 * self.dpi_scale)
         self.prev_image_button = QPushButton("<", self.images_widget)
-        self.prev_image_button.setFixedSize(button_size, button_size)
-
         self.next_image_button = QPushButton(">", self.images_widget)
-        self.next_image_button.setFixedSize(button_size, button_size)
         
         # Layout the image widget elements
         self._layout_image_widget_elements()

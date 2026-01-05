@@ -4,13 +4,16 @@
 
 import src.app.user_data.appdata as appdata
 
-VERSION = "1.1.2" # Application Version
+VERSION = "1.2.2" # Application Version
 
 # API Base URL for the application
 API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
 
 # User log file path from configuration
 USER_LOG_PATH: str = appdata.get_value_from_config('set_log_path', '')
+
+# App icon path
+APP_ICON_PATH = 'config/images/researchfrankbadge.ico'
 
 # GUI Configuration
 RESIZE_MARGIN = 5

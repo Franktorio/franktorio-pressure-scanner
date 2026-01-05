@@ -4,6 +4,8 @@
 
 from src.api.location import get_server_location_from_log
 
+_disconect_switch = True # Roblox logs sends disconnect log twice, this switch helps manage that
+
 def _get_roomname_from_logline(line: str) -> str | None:
     """
     Extract the room name from a log line if present.
@@ -32,6 +34,7 @@ def parse_log_lines(lines: list[str]) -> dict:
                 "disconnected": bool (if a disconnect was detected)
             }
     """
+    global _disconect_switch
     summary = {
         "rooms": [],
         "location": None,
@@ -51,7 +54,11 @@ def parse_log_lines(lines: list[str]) -> dict:
                 summary["location"] = location
 
         if "[flog::network] client:disconnect" in u_line:
-            summary["disconnected"] = True
+            if _disconect_switch:
+                summary["disconnected"] = True
+                _disconect_switch = False
+            else:
+                _disconect_switch = True
 
     return summary
             
