@@ -2,7 +2,20 @@
 # Configuration Variables
 # December 2025
 
+import os
+import sys
 import src.app.user_data.appdata as appdata
+
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not bundled, use the current directory
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    return os.path.join(base_path, relative_path)
 
 VERSION = "1.2.2" # Application Version
 
@@ -12,8 +25,9 @@ API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
 # User log file path from configuration
 USER_LOG_PATH: str = appdata.get_value_from_config('set_log_path', '')
 
-# App icon path
-APP_ICON_PATH = 'config/images/researchfrankbadge.ico'
+# App icon paths - use resource path helper for bundled executables
+APP_ICON_PATH = get_resource_path('config/images/researchfrankbadge.ico')
+APP_ICON_PNG_PATH = get_resource_path('config/images/researchfrankbadge.png')
 
 # GUI Configuration
 RESIZE_MARGIN = 5
