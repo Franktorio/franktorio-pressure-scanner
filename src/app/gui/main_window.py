@@ -6,10 +6,10 @@ import datetime
 import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog
+    QApplication, QMainWindow, QFileDialog, QShortcut
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QKeySequence
 
 from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION
 from .colors import COLORS, convert_style_to_qss
@@ -18,7 +18,7 @@ from .widgets import WidgetSetupMixin
 
 from src.app.scanner.scanner import Scanner
 from src.api.scanner import RoomInfo
-from src.api.images import download_images
+from src.api.images import download_image
 
 from src.app.user_data.appdata import set_value_in_config
 
@@ -115,6 +115,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         # Emit empty log message
         self.log_console_message.emit(f"")
 
+        # Bind , and . keys for image navigation
+        # TODO: REPLACE WITH A SEPARATE KEY LISTENER AS PYQT5 ONLY LISTENS IF WINDOW IS FOCUSED
+        self.shortcut_next_image = QShortcut(QKeySequence("."), self)
+        self.shortcut_prev_image = QShortcut(QKeySequence(","), self)
+
+        self.shortcut_next_image.activated.connect(self.on_forward_image_button_clicked)
+        self.shortcut_prev_image.activated.connect(self.on_backward_image_button_clicked)
+
     def on_log_console_message(self, message: str):
         """Slot to handle logging messages to console"""
         MAX_CHARS = 5000
@@ -159,23 +167,27 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
         # Download and display images
         self.current_image_index = 0
-        self.loaded_images = [image for image in download_images(room_info.picture_urls).values()]
-        
-        if not self.loaded_images:
-            self.display_image_label.setText("No image to display...")
-            self.display_image_label.setPixmap(QPixmap())  # Clear any existing pixmap
+        self.loaded_images = []
+
+        QApplication.processEvents()
+
+        # Exit early if no images
+        if not room_info.picture_urls:
+            self.display_image_label.setPixmap(QPixmap())  # Clear image
             self.image_counter_label.setText("0/0")
             return
-            
-        # Update counter label
-        total_images = len(self.loaded_images)
-        self.image_counter_label.setText(f"{self.current_image_index + 1}/{total_images}")
         
-        current_image = self.loaded_images[self.current_image_index]
+        # Download first image
+        first_image_data = download_image(room_info.picture_urls[0])
+        self.loaded_images.append(first_image_data)
 
-        if current_image:
+        total_images = len(room_info.picture_urls)
+        self.image_counter_label.setText(f"1/{total_images}")
+
+        # Display the first image
+        if first_image_data:
             pixmap = QPixmap()
-            pixmap.loadFromData(current_image)
+            pixmap.loadFromData(first_image_data)
             scaled_pixmap = pixmap.scaled(
                 self.display_image_label.width(),
                 self.display_image_label.height(),
@@ -183,7 +195,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                 Qt.SmoothTransformation
             )
             self.display_image_label.setPixmap(scaled_pixmap)
-            self.display_image_label.setText("")  # Clear text when image is displayed
+        QApplication.processEvents()
+
+        # Load rest of the images
+        for url in room_info.picture_urls[1:]:
+            image_data = download_image(url)
+            self.loaded_images.append(image_data)
+            QApplication.processEvents()
+
 
     def on_forward_image_button_clicked(self):
         """Slot to handle forward image button click"""
@@ -265,7 +284,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                 f"A new version of Franktorio Research Scanner is available!<br><br>"
                 f"Current version: {VERSION}<br>"
                 f"Latest version: {latest_version}<br><br>"
-                f"Please visit <a href=\"https://github.com/Franktorio/franktorio-pressure-scanner\">the repository</a> to download the latest version."
+                f"Please visit <a href=\"https://github.com/Franktorio/franktorio-pressure-scanner/releases\">the repository</a> to download the latest version."
             )
             msg_box.setStandardButtons(QMessageBox.Ok)
             msg_box.exec_()
