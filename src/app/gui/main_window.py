@@ -6,7 +6,7 @@ import datetime
 import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QShortcut
+    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QKeySequence
@@ -68,6 +68,10 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.update_stop_scan_button_state.connect(self.on_update_stop_scan_button_state)
         self.log_console_message.connect(self.on_log_console_message)
         self.version_check_ready.connect(self.on_version_check_ready)
+        self.debug_console_button.clicked.connect(self.on_debug_console_button_clicked)
+
+        # Debug console window
+        self.debug_console_window = DebugConsoleWindow(self)
 
         # Scanner object placeholder
         self.scanner = Scanner()
@@ -96,6 +100,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.scanner.set_stop_button_signal(self.update_stop_scan_button_state)
         self.scanner.set_log_console_message_signal(self.log_console_message)
         self.scanner.set_version_check_ready_signal(self.version_check_ready)
+        self.scanner.set_debug_console_message_signal(self.debug_console_window.debug_console_message)
 
         # Disable stop scan button initially
         self.stop_scan_button.setEnabled(False)
@@ -266,6 +271,13 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         """Slot to handle stop scan button state updates"""
         self.stop_scan_button.setEnabled(enabled)
 
+    def on_debug_console_button_clicked(self):
+        """Slot to handle debug console button click"""
+        # Update debug stats before showing window
+        stats = self.scanner.get_debug_stats()
+        self.debug_console_window.update_stats(stats)
+        self.debug_console_window.show()
+
     def on_version_check_ready(self, latest_version: str):
         """Slot to handle version check completion"""
         if not latest_version or latest_version == "unknown":
@@ -314,3 +326,93 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         else:
             set_value_in_config("set_log_path", '')
             self.log_console_message.emit("Log directory selection cancelled, defaulting to Automatic Detection")
+
+class DebugConsoleWindow(QMainWindow):
+    """A separate window for detailed debug console output."""
+    debug_console_message = pyqtSignal(str)  # Signal to log messages to debug console
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Debug Console v{VERSION}")
+        self.setGeometry(150, 150, 800, 600)
+        
+        
+        # Apply main window background color
+        main_style = {
+            "styles": {
+                "QMainWindow": {
+                    "background-color": COLORS['background']
+                }
+            }
+        }
+        self.setStyleSheet(convert_style_to_qss(main_style))
+        
+        # Setup text area with styling to match main console
+        self.debug_text_area = QTextEdit(self)
+        self.debug_text_area.setReadOnly(True)
+        
+        # Apply console text area styling
+        text_area_style = {
+            "styles": {
+                "QTextEdit": {
+                    "background-color": COLORS['surface'],
+                    "color": COLORS['text'],
+                    "padding": "10px",
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px",
+                    "font-family": "Consolas, monospace",
+                    "font-size": "10pt"
+                }
+            }
+        }
+        self.debug_text_area.setStyleSheet(convert_style_to_qss(text_area_style))
+        self.setCentralWidget(self.debug_text_area)
+
+        # Connect signal to slot
+        self.debug_console_message.connect(self.log_debug_message)
+        
+        # Add initial header
+        self.debug_text_area.append("=" * 80)
+        self.debug_text_area.append(f"Franktorio Research Scanner - Debug Console v{VERSION}")
+        self.debug_text_area.append("=" * 80)
+        self.debug_text_area.append("")
+
+    def log_debug_message(self, message: str):
+        """Log a debug message to the debug console."""
+        MAX_CHARS = 50000
+        now = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
+        formatted_message = f"{now} {message}"
+        current_text = self.debug_text_area.toPlainText()
+        self.debug_text_area.setText(current_text[-MAX_CHARS:] + formatted_message + "\n")
+        self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
+
+    def update_stats(self, stats: dict):
+        """Update and display current debug statistics."""
+        self.debug_text_area.append("\n" + "=" * 80)
+        self.debug_text_area.append(f"Debug Statistics - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.debug_text_area.append("=" * 80)
+        
+        # Scanner stats
+        self.debug_text_area.append("\n[Scanner Statistics]")
+        self.debug_text_area.append(f"  Scanner Iterations:     {stats.get('scanner_iterations', 0)}")
+        self.debug_text_area.append(f"  File Checks:            {stats.get('file_checks', 0)}")
+        self.debug_text_area.append(f"  File Switches:          {stats.get('file_switches', 0)}")
+        self.debug_text_area.append(f"  API Calls:              {stats.get('api_calls', 0)}")
+        self.debug_text_area.append(f"  Session Requests:       {stats.get('session_requests', 0)}")
+        self.debug_text_area.append(f"  Total Rooms Reported:   {stats.get('total_rooms_reported', 0)}")
+        self.debug_text_area.append(f"  Errors Caught:          {stats.get('errors_caught', 0)}")
+        
+        # Stalker stats
+        self.debug_text_area.append("\n[File Monitoring Statistics]")
+        self.debug_text_area.append(f"  Total Reads:            {stats.get('stalker_reads', 0)}")
+        self.debug_text_area.append(f"  Total Lines Read:       {stats.get('stalker_lines_read', 0)}")
+        self.debug_text_area.append(f"  Empty Reads:            {stats.get('stalker_empty_reads', 0)}")
+        
+        # Parser stats
+        self.debug_text_area.append("\n[Parser Statistics]")
+        self.debug_text_area.append(f"  Total Lines Parsed:     {stats.get('total_lines_parsed', 0)}")
+        self.debug_text_area.append(f"  Rooms Found:            {stats.get('rooms_found', 0)}")
+        self.debug_text_area.append(f"  Locations Found:        {stats.get('locations_found', 0)}")
+        self.debug_text_area.append(f"  Disconnects Detected:   {stats.get('disconnects_detected', 0)}")
+        
+        self.debug_text_area.append("\n" + "=" * 80 + "\n")
+        self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())

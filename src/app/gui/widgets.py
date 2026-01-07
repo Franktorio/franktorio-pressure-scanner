@@ -254,6 +254,11 @@ class WidgetSetupMixin:
         self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         title_layout.addWidget(self.title_label)
 
+        # Create <> to open detailed console for debugging
+        self.debug_console_button = QPushButton("<>", self.title_bar)
+        self.debug_console_button.setFixedSize(int(30 * self.dpi_scale), int(20 * self.dpi_scale))
+        title_layout.addWidget(self.debug_console_button)
+
         # Create Start Scan button
         self.start_scan_button = QPushButton("Start Scan", self.title_bar)
         self.start_scan_button.setFixedSize(int(80 * self.dpi_scale), int(20 * self.dpi_scale))
@@ -264,7 +269,7 @@ class WidgetSetupMixin:
         self.stop_scan_button.setFixedSize(int(80 * self.dpi_scale), int(20 * self.dpi_scale))
         title_layout.addWidget(self.stop_scan_button)
 
-        # Create Persisten Window button
+        # Create Persistent Window button
         self.persistent_window_button = QPushButton("Persistent Window: OFF", self.title_bar)
         self.persistent_window_button.setFixedSize(int(120 * self.dpi_scale), int(20 * self.dpi_scale))
         title_layout.addWidget(self.persistent_window_button)

@@ -3,6 +3,7 @@
 # January 2026]]
 
 import asyncio
+import time
 import threading
 
 from config.vars import session_config, VERSION
@@ -27,6 +28,18 @@ class Scanner:
         self.latest_rooms = []  # List of up to 5 latest scanned room names to prevent duplicates
         self.current_path = None  # Current log file path being monitored
         self.last_scanned_path = None  # Last scanned log file path
+
+        # Debug statistics
+        self.debug_stats = {
+            "file_checks": 0,
+            "file_switches": 0,
+            "api_calls": 0,
+            "session_requests": 0,
+            "total_rooms_reported": 0,
+            "scanner_iterations": 0,
+            "errors_caught": 0
+        }
+        self.last_file_check_time = time.time()
 
         version_thread = threading.Thread(target=self._run_version_check_loop, daemon=True)
         version_thread.start()
@@ -74,21 +87,29 @@ class Scanner:
 
         # Only request a session if we don't have one AND there are rooms to report
         if not self.has_session and parsed_rooms:
+            self.debug_stats["session_requests"] += 1
+            self._log_debug_message("Requesting new API session...")
             success = await request_session()
             if not success:
+                self._log_debug_message("Session request failed")
                 return None
             self.has_session = True
+            self._log_debug_message("Session request successful")
         
         latest_room = None
         for room in parsed_rooms:
+            self.debug_stats["api_calls"] += 1
+            self.debug_stats["total_rooms_reported"] += 1
             if room in self.latest_rooms:
                 self._log_console_message(f"Returned to room: {room}.")
+                self._log_debug_message(f"API call: room_encountered (duplicate room: {room}) with logging=False")
                 _, latest_room = await room_encountered(room_name=room, log_event=False)
             else:
                 self.latest_rooms.append(room)
                 if len(self.latest_rooms) > 5:
                     self.latest_rooms.pop(0)  # Maintain only the last 5 rooms
                 self._log_console_message(f"Encountered new room: {room}.")
+                self._log_debug_message(f"API call: room_encountered (new room: {room}) with logging=True")
                 _, latest_room = await room_encountered(room_name=room, log_event=True)
         
         return latest_room
@@ -114,7 +135,8 @@ class Scanner:
             'update_room_info',
             'update_start_button',
             'update_stop_button',
-            'version_check_ready'
+            'version_check_ready',
+            'debug_console_message'
         ]
         for signal_name in required_signals:
             if not hasattr(self, signal_name):
@@ -126,9 +148,11 @@ class Scanner:
         self.stalker = Stalker()
 
         _no_new_lines_accumulator = 0
+        import time
         
         while self.alive:
             await asyncio.sleep(self.loop_interval)
+            self.debug_stats["scanner_iterations"] += 1
 
             if not self._validate_signals_setup():
                 print("Scanner signals not properly set up, skipping iteration")
@@ -143,7 +167,10 @@ class Scanner:
                     self.current_path = get_latest_log_file_path()
                     self.stalker.file_position = 0  # Reset file position for new log file
                     self._log_console_message(f"Monitoring log file: {self.current_path}")
+                    self._log_debug_message(f"Log file found: {self.current_path}")
                 except (EnvironmentError, FileNotFoundError) as e:
+                    self.debug_stats["errors_caught"] += 1
+                    self._log_debug_message(f"Error finding log file: {e}")
                     continue
             
             # Open the log file and observe changes
@@ -152,17 +179,26 @@ class Scanner:
                     new_lines = observe_logfile_changes(logfile, self.stalker)
             except (IOError, OSError) as e:
                 # File might have been deleted, clear path and retry
+                self.debug_stats["errors_caught"] += 1
+                self._log_debug_message(f"Error reading log file: {e}")
                 self.current_path = None
                 continue
 
             if not new_lines:
                 _no_new_lines_accumulator += 1
                 if _no_new_lines_accumulator >= 50:
+                    self.debug_stats["file_checks"] += 1
+                    current_time = time.time()
+                    time_since_last_check = current_time - self.last_file_check_time
+                    self.last_file_check_time = current_time
+                    self._log_debug_message(f"Checking for new log file (last check: {time_since_last_check:.1f}s ago)")
                     latest_file = get_latest_log_file_path()
                     if latest_file != self.current_path:
+                        self.debug_stats["file_switches"] += 1
                         self.current_path = latest_file
                         self.stalker.file_position = 0  # Reset file position for new log file
                         self._log_console_message(f"Switched to new log file: {self.current_path}")
+                        self._log_debug_message(f"File switch detected: {self.current_path}")
                         # Reset scanner 
                         await self.reset()
                     _no_new_lines_accumulator = 0
@@ -172,6 +208,10 @@ class Scanner:
             rooms = parsed_results.get("rooms", [])
             location = parsed_results.get("location", None)
             disconnected = parsed_results.get("disconnected", False)
+            lines_parsed = parsed_results.get("lines_parsed", 0)
+            
+            if lines_parsed > 0:
+                self._log_debug_message(f"Parsed {lines_parsed} new lines from log file")
 
             # Process parsed results
             latest_room = await self.report_new_rooms(rooms)
@@ -181,10 +221,12 @@ class Scanner:
 
             if location:
                 self._log_console_message(f"Location updated: {location}")
+                self._log_debug_message(f"Server location detected: {location}")
                 self.update_server_info.emit(location)
             
             # Reset state on disconnect
             if disconnected:
+                self._log_debug_message("Disconnect detected, resetting scanner state")
                 await self.reset()
 
 
@@ -193,6 +235,27 @@ class Scanner:
         if not hasattr(self, 'log_console_message'):
             return
         self.log_console_message.emit(message)
+
+    def _log_debug_message(self, message: str):
+        """Log a debug message to the debug console via signal."""
+        if not hasattr(self, 'debug_console_message'):
+            return
+        self.debug_console_message.emit(message)
+
+    def get_debug_stats(self) -> dict:
+        """Return current debug statistics."""
+        stats = self.debug_stats.copy()
+        if self.stalker:
+            stats["stalker_reads"] = self.stalker.total_reads
+            stats["stalker_lines_read"] = self.stalker.total_lines_read
+            stats["stalker_empty_reads"] = self.stalker.empty_reads
+        
+        # Import parser stats
+        from src.app.scanner.parser import get_parser_stats
+        parser_stats = get_parser_stats()
+        stats.update(parser_stats)
+        
+        return stats
 
     def set_server_info_signal(self, signal):
         """Set the signal for server info updates."""
@@ -217,6 +280,10 @@ class Scanner:
     def set_version_check_ready_signal(self, signal):
         """Set the signal for version check ready notification."""
         self.version_check_ready = signal
+
+    def set_debug_console_message_signal(self, signal):
+        """Set the signal for debug console messages."""
+        self.debug_console_message = signal
 
     async def version_check_loop(self):
         """Wait for scanner to be ready, then perform version check."""

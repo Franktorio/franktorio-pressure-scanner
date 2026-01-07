@@ -6,6 +6,18 @@ from src.api.location import get_server_location_from_log
 
 _disconect_switch = True # Roblox logs sends disconnect log twice, this switch helps manage that
 
+# Debug statistics
+_debug_stats = {
+    "total_lines_parsed": 0,
+    "rooms_found": 0,
+    "locations_found": 0,
+    "disconnects_detected": 0
+}
+
+def get_parser_stats() -> dict:
+    """Return current parser statistics."""
+    return _debug_stats.copy()
+
 def _get_roomname_from_logline(line: str) -> str | None:
     """
     Extract the room name from a log line if present.
@@ -31,15 +43,20 @@ def parse_log_lines(lines: list[str]) -> dict:
             {
                 "rooms": [list of room names],
                 "location: str | None (server location),
-                "disconnected": bool (if a disconnect was detected)
+                "disconnected": bool (if a disconnect was detected),
+                "lines_parsed": int (number of lines parsed in this call)
             }
     """
-    global _disconect_switch
+    global _disconect_switch, _debug_stats
     summary = {
         "rooms": [],
         "location": None,
-        "disconnected": False
+        "disconnected": False,
+        "lines_parsed": len(lines)
     }
+
+    # Update debug stats
+    _debug_stats["total_lines_parsed"] += len(lines)
 
     for line in lines:
         u_line = line.lower()
@@ -47,16 +64,19 @@ def parse_log_lines(lines: list[str]) -> dict:
         if "room name" in u_line:
             room_name = _get_roomname_from_logline(line)
             summary["rooms"].append(room_name)
+            _debug_stats["rooms_found"] += 1
 
         if "udmux" in u_line and not summary["location"]:
             location = get_server_location_from_log(u_line)
             if location:
                 summary["location"] = location
+                _debug_stats["locations_found"] += 1
 
         if "[flog::network] client:disconnect" in u_line:
             if _disconect_switch:
                 summary["disconnected"] = True
                 _disconect_switch = False
+                _debug_stats["disconnects_detected"] += 1
             else:
                 _disconect_switch = True
 
