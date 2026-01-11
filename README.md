@@ -25,6 +25,10 @@ This tool allows you view what the researchers have documented in https://github
 
 3. If the scanner isn't finding the log files, press `Set Log Dir` and select the folder where **Roblox writes the logs.**
 
+**NOTES:** 
+- **SCANNER WILL ALWAYS READ THE LATEST LOG FILE, IF YOU ARE NOT IN A GAME IT WILL READ THE LATEST FILE IT CAN. FOR A BETTER EXPERIENCE, JOIN A GAME FIRST BEFORE STARTING SCAN**
+- **STARTING SCANNER, STOPPING SCANNER AND RESTARTING SCANNER WITHOUT LEAVING A GAME WILL CAUSE THE SCANNER TO START READING THE ENTIRE FILE FROM THE BEGINNING**
+
 ## Installation (from code)
 
 1. Clone the repository:
