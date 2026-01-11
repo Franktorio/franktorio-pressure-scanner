@@ -205,7 +205,7 @@ class Scanner:
             
             # Open the log file and observe changes
             try:
-                with open(self.current_path, "r", encoding="utf-8") as logfile:
+                with open(self.current_path, "r", encoding="utf-8", errors="replace") as logfile:
                     new_lines = observe_logfile_changes(logfile, self.stalker)
             except (IOError, OSError) as e:
                 # File might have been deleted, clear path and retry
