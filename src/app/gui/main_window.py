@@ -322,7 +322,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         current_log_path = get_value_from_config("set_log_path", "")
         
         # If there's already a path set, remove it
-        if current_log_path == "":
+        if current_log_path != "":
             set_value_in_config("set_log_path", '')
             self.log_console_message.emit("Log directory removed, defaulting to Automatic Detection")
             self.log_console_message.emit(">> RESTART REQUIRED << for changes to take effect")
