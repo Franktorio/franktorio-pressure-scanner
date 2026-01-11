@@ -4,9 +4,10 @@
 
 import asyncio
 import time
+import traceback
 import threading
 
-from config.vars import session_config, VERSION
+from config.vars import session_config
 from src.api.scanner import request_session, end_session, room_encountered, RoomInfo, check_scanner_version
 from src.app.scanner.stalker import Stalker, observe_logfile_changes
 from src.app.scanner.parser import parse_log_lines
@@ -48,17 +49,38 @@ class Scanner:
         """Start the scanning task in a separate thread."""
         if self.thread is None or not self.thread.is_alive():
             self.alive = True
-            self.thread = threading.Thread(target=self._run_async_loop, daemon=True)
+            self.thread = threading.Thread(target=self._run_async_loop_wrapper, daemon=True)
             self.thread.start()
             self.update_start_button.emit(False)  # Disable start button
             self.update_stop_button.emit(True)    # Enable stop button
             self._log_console_message("Scanner has been started.")
+            self._log_debug_message("Scanner thread started successfully")
+    
+    def _run_async_loop_wrapper(self):
+        """Wrapper to catch and handle scanner thread crashes."""
+        try:
+            self._log_debug_message("Entering async event loop")
+            self._run_async_loop()
+        except Exception as e:
+            self.debug_stats["errors_caught"] += 1
+            self._log_console_message(f"CRITICAL ERROR: Scanner thread crashed: {e}")
+            self._log_debug_message(f"Scanner thread exception details: {type(e).__name__}: {e}")
+            self._log_debug_message(f"Traceback: {traceback.format_exc()}")
+            # Try to reset button states
+            try:
+                self.update_start_button.emit(True)
+                self.update_stop_button.emit(False)
+            except:
+                pass
     
     def _run_async_loop(self):
         """Run asyncio event loop in separate thread."""
+        self._log_debug_message("Creating new asyncio event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        self._log_debug_message("Starting scanner_loop coroutine")
         self.loop.run_until_complete(self.scanner_loop())
+        self._log_debug_message("Scanner loop completed")
 
     def _run_version_check_loop(self):
         """Run version check in separate thread with its own event loop."""
@@ -68,10 +90,12 @@ class Scanner:
 
     def stop(self):
         """Stop the scanning task."""
+        self._log_debug_message("Stop command received")
         self.alive = False
         self.update_start_button.emit(True)   # Enable start button
         self.update_stop_button.emit(False)    # Disable stop button
         self._log_console_message("Scanner has been stopped.")
+        self._log_debug_message("Scanner stopped successfully")
 
     async def report_new_rooms(self, parsed_rooms: list[str]) -> RoomInfo | None:
         """
@@ -121,12 +145,14 @@ class Scanner:
     
     async def reset(self):
         """Reset the scanner state."""
+        self._log_debug_message("Resetting scanner state...")
         self.latest_rooms.clear()
         await end_session()
         session_config.clear_session()  # Clear expired credentials
         self.has_session = False  # Force new session request
         self._reset_scanner_visuals()
         self._log_console_message("Scanner state has been reset.")
+        self._log_debug_message("Scanner reset complete")
 
     def _validate_signals_setup(self):
         """Ensure that all required signals are set up."""
@@ -145,11 +171,14 @@ class Scanner:
 
     async def scanner_loop(self):
         """Asynchronous loop to run the scan function at specified intervals."""
+        self._log_debug_message("Initializing scanner loop")
         self.stalker = Stalker()
+        self._log_debug_message("Stalker initialized")
 
         _no_new_lines_accumulator = 0
         import time
         
+        self._log_debug_message("Entering main scanner loop")
         while self.alive:
             await asyncio.sleep(self.loop_interval)
             self.debug_stats["scanner_iterations"] += 1
@@ -164,13 +193,14 @@ class Scanner:
             # Ensure we have a log file path
             if not self.current_path:
                 try:
+                    self._log_debug_message("Searching for log file...")
                     self.current_path = get_latest_log_file_path()
                     self.stalker.file_position = 0  # Reset file position for new log file
                     self._log_console_message(f"Monitoring log file: {self.current_path}")
-                    self._log_debug_message(f"Log file found: {self.current_path}")
+                    self._log_debug_message(f"Log file found and monitoring started: {self.current_path}")
                 except (EnvironmentError, FileNotFoundError) as e:
                     self.debug_stats["errors_caught"] += 1
-                    self._log_debug_message(f"Error finding log file: {e}")
+                    self._log_debug_message(f"Error finding log file: {type(e).__name__}: {e}")
                     continue
             
             # Open the log file and observe changes
@@ -211,9 +241,11 @@ class Scanner:
             lines_parsed = parsed_results.get("lines_parsed", 0)
             
             if lines_parsed > 0:
-                self._log_debug_message(f"Parsed {lines_parsed} new lines from log file")
+                self._log_debug_message(f"Parsed {lines_parsed} new lines - rooms: {len(rooms)}, location: {location is not None}, disconnect: {disconnected}")
 
             # Process parsed results
+            if rooms:
+                self._log_debug_message(f"Processing {len(rooms)} room(s): {rooms}")
             latest_room = await self.report_new_rooms(rooms)
 
             if latest_room:

@@ -591,7 +591,11 @@ class WidgetSetupMixin:
         self.copy_console_button = QPushButton("Copy", self.main_console_widget)
         self.copy_console_button.setFont(font)
 
-        self.set_log_dir_button = QPushButton("Set Log Dir", self.main_console_widget)
+        # Determine button text based on current log path
+        from src.app.user_data.appdata import get_value_from_config
+        current_log_path = get_value_from_config("set_log_path", "")
+        button_text = "Remove Log Dir" if current_log_path else "Set Log Dir"
+        self.set_log_dir_button = QPushButton(button_text, self.main_console_widget)
         self.set_log_dir_button.setFont(font)
         
         # Layout console elements

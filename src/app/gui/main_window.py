@@ -317,15 +317,27 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     
     def on_set_log_dir_clicked(self):
         """Slot to handle set log directory button click"""
+        from src.app.user_data.appdata import get_value_from_config
         
-        dir_path = QFileDialog.getExistingDirectory(self, "Select Log Directory", os.path.expanduser("~"))
+        current_log_path = get_value_from_config("set_log_path", "")
         
-        if dir_path:
-            set_value_in_config("set_log_path", dir_path)
-            self.log_console_message.emit(f"Log directory set to: {dir_path}")
-        else:
+        # If there's already a path set, remove it
+        if current_log_path == "":
             set_value_in_config("set_log_path", '')
-            self.log_console_message.emit("Log directory selection cancelled, defaulting to Automatic Detection")
+            self.log_console_message.emit("Log directory removed, defaulting to Automatic Detection")
+            self.log_console_message.emit(">> RESTART REQUIRED << for changes to take effect")
+            self.set_log_dir_button.setText("Set Log Dir")
+        else:
+            # Otherwise, open dialog to set new path
+            dir_path = QFileDialog.getExistingDirectory(self, "Select Log Directory", os.path.expanduser("~"))
+            
+            if dir_path:
+                set_value_in_config("set_log_path", dir_path)
+                self.log_console_message.emit(f"Log directory set to: {dir_path}")
+                self.log_console_message.emit(">> RESTART REQUIRED << for changes to take effect")
+                self.set_log_dir_button.setText("Undo Log Dir")
+            else:
+                self.log_console_message.emit("Log directory selection cancelled")
 
 class DebugConsoleWindow(QMainWindow):
     """A separate window for detailed debug console output."""
