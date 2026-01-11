@@ -10,6 +10,12 @@ This tool allows you view what the researchers have documented in https://github
 - **Information Support**: Allows you to see anything relevant documented by the researchers like hiding spots or easter eggs. Good for new players.
 - **Version Checking**: Ensures you're running the latest version of the scanner
 
+## Showcase
+
+![Scanner Screenshot 1](https://pub-14908be79b544ff094192d7ae647f32b.r2.dev/Screenshot%202026-01-05%20011142.png)
+
+![Scanner Screenshot 2](https://pub-14908be79b544ff094192d7ae647f32b.r2.dev/Screenshot%202026-01-10%20202239.png)
+
 ## Installation
 
 1. Clone the repository:
