@@ -16,7 +16,16 @@ This tool allows you view what the researchers have documented in https://github
 
 ![Scanner Screenshot 2](https://pub-14908be79b544ff094192d7ae647f32b.r2.dev/Screenshot%202026-01-10%20202239.png)
 
-## Installation
+## Installation (.exe)
+
+1. Download latest release!
+> https://github.com/Franktorio/franktorio-pressure-scanner/releases
+
+2. Run the scanner and click `Start Scan` on the title bar
+
+3. If the scanner isn't finding the log files, press `Set Log Dir` and select the folder where **Roblox writes the logs.**
+
+## Installation (from code)
 
 1. Clone the repository:
 ```bash
