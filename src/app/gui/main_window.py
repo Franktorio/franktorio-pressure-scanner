@@ -48,7 +48,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
         # Remove window frame for custom styling
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.dpi_scale = self._get_dpi_scale()
+        self.dpi_scale = 1
 
         # Initialize window controls
         self.init_window_controls()
@@ -127,6 +127,12 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
         self.shortcut_next_image.activated.connect(self.on_forward_image_button_clicked)
         self.shortcut_prev_image.activated.connect(self.on_backward_image_button_clicked)
+
+    def resizeEvent(self, event):
+        """Override resizeEvent to update widget sizes when window is resized"""
+        super().resizeEvent(event)
+        if hasattr(self, 'main_widget'):
+            self._update_widget_sizes()
 
     def on_log_console_message(self, message: str):
         """Slot to handle logging messages to console"""

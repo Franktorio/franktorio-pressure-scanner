@@ -6,12 +6,40 @@ import threading
 
 from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QTextEdit
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QFont, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QApplication
 
 from config.vars import VERSION, APP_ICON_PATH
 
 from .colors import COLORS, convert_style_to_qss
+
+
+class ElidedLabel(QLabel):
+    """Label that automatically elides text that's too long"""
+    def __init__(self, text='', parent=None):
+        super().__init__(text, parent)
+        self._full_text = text
+        
+    def setText(self, text):
+        """Override setText to store full text and elide if needed"""
+        self._full_text = text
+        self._updateText()
+        
+    def _updateText(self):
+        """Update displayed text with elision if needed"""
+        if not self._full_text:
+            super().setText('')
+            return
+            
+        metrics = QFontMetrics(self.font())
+        elided = metrics.elidedText(self._full_text, Qt.ElideRight, self.width())
+        super().setText(elided)
+        self.setToolTip(self._full_text)  # Show full text on hover
+    
+    def resizeEvent(self, event):
+        """Re-elide text when widget is resized"""
+        super().resizeEvent(event)
+        self._updateText()
 
 
 class WidgetSetupMixin:
@@ -242,7 +270,7 @@ class WidgetSetupMixin:
         title_layout.addWidget(self.app_icon_label)
 
         # Create label
-        self.title_label = QLabel(f"Franktorio's Research Scanner", self.title_bar)
+        self.title_label = ElidedLabel(f"Franktorio's Research Scanner", self.title_bar)
         self.title_label.setObjectName("titleBarLabel")
         self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
@@ -256,22 +284,25 @@ class WidgetSetupMixin:
 
         # Create <> to open detailed console for debugging
         self.debug_console_button = QPushButton("<>", self.title_bar)
-        self.debug_console_button.setFixedSize(int(30 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.debug_console_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
         title_layout.addWidget(self.debug_console_button)
 
         # Create Start Scan button
         self.start_scan_button = QPushButton("Start Scan", self.title_bar)
-        self.start_scan_button.setFixedSize(int(80 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.start_scan_button.setMinimumWidth(int(70 * self.dpi_scale))
+        self.start_scan_button.setFixedHeight(int(20 * self.dpi_scale))
         title_layout.addWidget(self.start_scan_button)
 
         # Create Stop Scan button
         self.stop_scan_button = QPushButton("Stop Scan", self.title_bar)
-        self.stop_scan_button.setFixedSize(int(80 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.stop_scan_button.setMinimumWidth(int(70 * self.dpi_scale))
+        self.stop_scan_button.setFixedHeight(int(20 * self.dpi_scale))
         title_layout.addWidget(self.stop_scan_button)
 
         # Create Persistent Window button
         self.persistent_window_button = QPushButton("Persistent Window: OFF", self.title_bar)
-        self.persistent_window_button.setFixedSize(int(120 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.persistent_window_button.setMinimumWidth(int(140 * self.dpi_scale))
+        self.persistent_window_button.setFixedHeight(int(20 * self.dpi_scale))
         title_layout.addWidget(self.persistent_window_button)
         
         # Create X button on right side
@@ -415,6 +446,7 @@ class WidgetSetupMixin:
         # Copy room name button
         self.copy_room_name_button = QPushButton("Copy Room Name", self.image_description_widget)
         self.copy_room_name_button.setFont(font)
+        self.copy_room_name_button.setMinimumHeight(int(25 * self.dpi_scale))
         self.copy_room_name_button.clicked.connect(self._copy_room_name_to_clipboard)
         layout.addWidget(self.copy_room_name_button)
 
@@ -504,21 +536,21 @@ class WidgetSetupMixin:
         # Setup four labels to represent server info
         self.server_info_layout = QVBoxLayout(self.server_info_widget)
 
-        self.server_info_title = QLabel("<b>Server Information</b>", self.server_info_widget)
+        self.server_info_title = ElidedLabel("<b>Server Information</b>", self.server_info_widget)
         self.server_info_title.setFont(font)
         self.server_info_title.setObjectName("serverInfoTitle")
         self.server_info_title.setAlignment(Qt.AlignCenter)
         self.server_info_layout.addWidget(self.server_info_title)
 
-        self.server_country_label = QLabel("<b>Country:</b> N/A", self.server_info_widget)
+        self.server_country_label = ElidedLabel("<b>Country:</b> N/A", self.server_info_widget)
         self.server_country_label.setFont(font)
         self.server_info_layout.addWidget(self.server_country_label)
 
-        self.server_region_label = QLabel("<b>Region:</b> N/A", self.server_info_widget)
+        self.server_region_label = ElidedLabel("<b>Region:</b> N/A", self.server_info_widget)
         self.server_region_label.setFont(font)
         self.server_info_layout.addWidget(self.server_region_label)
 
-        self.server_city_label = QLabel("<b>City:</b> N/A", self.server_info_widget)
+        self.server_city_label = ElidedLabel("<b>City:</b> N/A", self.server_info_widget)
         self.server_city_label.setFont(font)
         self.server_info_layout.addWidget(self.server_city_label)
         
