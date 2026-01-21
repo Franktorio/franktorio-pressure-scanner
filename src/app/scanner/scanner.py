@@ -9,7 +9,7 @@ import threading
 
 from config.vars import session_config
 from src.api.scanner import request_session, end_session, room_encountered, RoomInfo, check_scanner_version
-from src.app.scanner.stalker import Stalker, observe_logfile_changes
+from src.app.scanner.stalker import Stalker
 from src.app.scanner.parser import parse_log_lines
 from src.app.scanner.log_finder import get_latest_log_file_path
 
@@ -175,8 +175,17 @@ class Scanner:
         self.stalker = Stalker()
         self._log_debug_message("Stalker initialized")
 
+        self.current_path = get_latest_log_file_path()
+
+        try:
+            with open(self.current_path, "r", encoding="utf-8", errors="replace") as logfile:
+                self.stalker.find_starting_point(logfile)
+                self._log_debug_message(f"Stalker starting point set to last disconnect entry at position {self.stalker.file_position}")
+        except (IOError, OSError) as e:
+            self.debug_stats["errors_caught"] += 1
+            self._log_debug_message(f"Error initializing stalker starting point: {e}")
+
         _no_new_lines_accumulator = 0
-        import time
         
         self._log_debug_message("Entering main scanner loop")
         while self.alive:
@@ -206,7 +215,7 @@ class Scanner:
             # Open the log file and observe changes
             try:
                 with open(self.current_path, "r", encoding="utf-8", errors="replace") as logfile:
-                    new_lines = observe_logfile_changes(logfile, self.stalker)
+                    new_lines = self.stalker.observe_logfile_changes(logfile)
             except (IOError, OSError) as e:
                 # File might have been deleted, clear path and retry
                 self.debug_stats["errors_caught"] += 1
