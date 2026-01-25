@@ -16,14 +16,31 @@ This tool allows you view what the researchers have documented in https://github
 
 ![Scanner Screenshot 2](https://pub-14908be79b544ff094192d7ae647f32b.r2.dev/Screenshot%202026-01-10%20202239.png)
 
-## Installation (.exe)
+## Installation
 
-1. Download latest release!
+### Windows (.exe)
+
+1. Download the latest Windows release:
 > https://github.com/Franktorio/franktorio-pressure-scanner/releases
 
-2. Run the scanner and click `Start Scan` on the title bar
+2. Run `Franktorio Research Scanner v1.4.6`
 
-3. If the scanner isn't finding the log files, press `Set Log Dir` and select the folder where **Roblox writes the logs.**
+3. Click `Start Scan` on the title bar
+
+4. If the scanner isn't finding the log files, press `Set Log Dir` and select the folder where **Roblox writes the logs**
+   - Default Windows location: `%LOCALAPPDATA%\Roblox\logs`
+
+### macOS
+
+1. Download the latest macOS release:
+> https://github.com/Franktorio/franktorio-pressure-scanner/releases
+
+2. Run `Franktorio Research Scanner v1.4.6` (you may need to right-click and select "Open" for the first run)
+
+3. Click `Start Scan` on the title bar
+
+4. If the scanner isn't finding the log files, press `Set Log Dir` and select the folder where **Roblox writes the logs**
+   - Default macOS location: `~/Library/Logs/Roblox`
 
 **NOTES:** 
 - **SCANNER WILL ALWAYS READ THE LATEST LOG FILE, IF YOU ARE NOT IN A GAME IT WILL READ THE LATEST FILE IT CAN. FOR A BETTER EXPERIENCE, JOIN A GAME FIRST BEFORE STARTING SCAN**

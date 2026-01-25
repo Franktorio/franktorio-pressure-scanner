@@ -1,4 +1,4 @@
-name: Deploy Application as EXE
+name: Deploy Application
 
 on:
   push:
@@ -6,7 +6,10 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -21,12 +24,25 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build EXE
-        run: pyinstaller --onefile --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.ico --add-data "config/images;config/images"
+      - name: Build Application (Windows)
+        if: runner.os == 'Windows'
+        run: pyinstaller --onefile --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.png --add-data "config/images;config/images"
 
-      - name: Upload EXE
+      - name: Build Application (macOS)
+        if: runner.os == 'macOS'
+        run: pyinstaller --onefile --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.icns --add-data "config/images:config/images"
+
+      - name: Upload Artifact (Windows)
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: Franktorio Research Scanner
+          name: Franktorio-Research-Scanner-Windows
           path: dist/franktorio-research-scanner.exe
+
+      - name: Upload Artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Franktorio-Research-Scanner-macOS
+          path: dist/franktorio-research-scanner
 

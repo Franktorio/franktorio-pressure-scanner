@@ -4,6 +4,7 @@
 
 import os
 import sys
+import platform
 import src.app.user_data.appdata as appdata
 
 def get_resource_path(relative_path):
@@ -17,7 +18,7 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-VERSION = "1.4.5" # Application Version
+VERSION = "1.4.6" # Application Version
 
 # API Base URL for the application
 API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
@@ -25,8 +26,10 @@ API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
 # User log file path from configuration
 USER_LOG_PATH: str = appdata.get_value_from_config('set_log_path', '')
 
-# App icon paths - use resource path helper for bundled executables
-APP_ICON_PATH = get_resource_path('config/images/researchfrankbadge.ico')
+if platform.system() == 'Darwin':
+    APP_ICON_PATH = get_resource_path('config/images/researchfrankbadge.icns')
+else:
+    APP_ICON_PATH = get_resource_path('config/images/researchfrankbadge.ico')
 APP_ICON_PNG_PATH = get_resource_path('config/images/researchfrankbadge.png')
 
 # GUI Configuration
