@@ -170,7 +170,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.current_image_index = 0
         self.loaded_images = []
         self.total_images_expected = 0  # Track total expected images for counter
-        self.time_between_image_changes = 5 # Seconds
+        self.time_between_image_changes = 3 # Seconds
         self.last_image_change_time = datetime.datetime.now().timestamp()
         self.rotating_images_enabled = False  # Start with rotating disabled
         self.current_room_name = None  # Track which room's images are currently being downloaded
