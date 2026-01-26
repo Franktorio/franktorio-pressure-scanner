@@ -53,8 +53,8 @@ class WidgetSetupMixin:
         widget_width = self.images_widget.width()
         widget_height = self.images_widget.height()
         
-        # Image label uses 90% of vertical space at top
-        image_height = int(widget_height * 0.9)
+        # Image label uses 85% of vertical space at top (reduced from 90% to make room for button)
+        image_height = int(widget_height * 0.85)
         self.display_image_label.setGeometry(0, 0, widget_width, image_height)
         
         # Update displayed image if any
@@ -72,24 +72,33 @@ class WidgetSetupMixin:
                 )
                 self.display_image_label.setPixmap(scaled_pixmap)
         
-        # Buttons and counter label at bottom (remaining 10%)
+        # Bottom area for controls (remaining 15%)
         button_area_top = image_height
         button_area_height = widget_height - image_height
         button_size = int(30 * self.dpi_scale)
         
-        # Center buttons vertically in the bottom area
-        button_y = button_area_top + (button_area_height - button_size) // 2
+        # Split bottom area in half - top half for counter and nav buttons, bottom half for toggle button
+        half_button_area = button_area_height // 2
+        
+        # Center navigation buttons and counter vertically in the top half of button area
+        button_y = button_area_top + (half_button_area - button_size) // 2
         
         self.prev_image_button.setGeometry(10, button_y, button_size, button_size)
         self.next_image_button.setGeometry(widget_width - button_size - 10, button_y, button_size, button_size)
-        
         
         image_label_size = int(20 * self.dpi_scale)
         self.image_counter_label.setFixedSize(image_label_size * 4, image_label_size)
         counter_width = self.image_counter_label.width()
         counter_x = (widget_width - counter_width) // 2
-        counter_y = button_area_top + (button_area_height - self.image_counter_label.height()) // 2
+        counter_y = button_area_top + (half_button_area - self.image_counter_label.height()) // 2
         self.image_counter_label.move(counter_x, counter_y)
+        
+        # Position toggle rotating images button in bottom half, centered
+        toggle_button_width = int(150 * self.dpi_scale)
+        toggle_button_height = int(25 * self.dpi_scale)
+        toggle_button_x = (widget_width - toggle_button_width) // 2
+        toggle_button_y = button_area_top + half_button_area + (half_button_area - toggle_button_height) // 2
+        self.toggle_rotating_images_button.setGeometry(toggle_button_x, toggle_button_y, toggle_button_width, toggle_button_height)
     
     def _layout_server_info_labels(self):
         """Helper function to layout server info labels dynamically"""
@@ -393,6 +402,11 @@ class WidgetSetupMixin:
         # Add back and forward buttons to cycle through images
         self.prev_image_button = QPushButton("<", self.images_widget)
         self.next_image_button = QPushButton(">", self.images_widget)
+        
+        # Add toggle rotating images button
+        self.toggle_rotating_images_button = QPushButton("Rotating Images: OFF", self.images_widget)
+        toggle_font = QFont("Segoe UI", int(9 * self.dpi_scale))
+        self.toggle_rotating_images_button.setFont(toggle_font)
         
         # Layout the image widget elements
         self._layout_image_widget_elements()

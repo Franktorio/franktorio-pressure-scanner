@@ -5,6 +5,7 @@
 import os
 import sys
 import platform
+from uuid import MAX
 import src.app.user_data.appdata as appdata
 
 def get_resource_path(relative_path):
@@ -18,7 +19,7 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-VERSION = "1.4.6" # Application Version
+VERSION = "1.4.7" # Application Version
 
 # API Base URL for the application
 API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
@@ -36,6 +37,8 @@ APP_ICON_PNG_PATH = get_resource_path('config/images/researchfrankbadge.png')
 RESIZE_MARGIN = 5
 MIN_WIDTH = 800
 MIN_HEIGHT = 600
+MAX_WIDTH = 1920
+MAX_HEIGHT = 1080
 
 class SessionConfig:
     """Configuration class for application settings"""

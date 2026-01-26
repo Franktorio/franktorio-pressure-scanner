@@ -3,8 +3,7 @@
 # December 2025
 
 from PyQt5.QtCore import Qt, QPoint
-from config.vars import RESIZE_MARGIN, MIN_WIDTH, MIN_HEIGHT
-
+from config.vars import MAX_HEIGHT, MAX_WIDTH, MIN_HEIGHT, MIN_WIDTH, RESIZE_MARGIN
 
 class WindowControlsMixin:
     """Mixin class for window dragging and resizing functionality"""
@@ -136,30 +135,32 @@ class WindowControlsMixin:
         initial_geo = self.initial_geometry
         min_width = MIN_WIDTH
         min_height = MIN_HEIGHT
+        max_width = MAX_WIDTH
+        max_height = MAX_HEIGHT
         
         # Calculate where the edge should be based on mouse position
         if 'left' in self.resize_edge:
             new_left = global_pos.x()
             new_width = initial_geo.right() - new_left
-            if new_width >= min_width:
+            if min_width <= new_width <= max_width:
                 geo.setLeft(new_left)
         
         if 'right' in self.resize_edge:
             new_right = global_pos.x()
             new_width = new_right - initial_geo.left()
-            if new_width >= min_width:
+            if min_width <= new_width <= max_width:
                 geo.setRight(new_right)
         
         if 'top' in self.resize_edge:
             new_top = global_pos.y()
             new_height = initial_geo.bottom() - new_top
-            if new_height >= min_height:
+            if min_height <= new_height <= max_height:
                 geo.setTop(new_top)
         
         if 'bottom' in self.resize_edge:
             new_bottom = global_pos.y()
             new_height = new_bottom - initial_geo.top()
-            if new_height >= min_height:
+            if min_height <= new_height <= max_height:
                 geo.setBottom(new_bottom)
         
         self.setGeometry(geo)

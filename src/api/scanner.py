@@ -24,6 +24,25 @@ def _run_in_executor(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return loop.run_in_executor(None, func, *args, **kwargs)
 
+def _submit_bug_report(report_text: str, debug_console_text: str, main_console_text: str) -> bool:
+    """Submit a bug report to the API"""
+    try:
+        resp = requests.post(
+            f"{API_BASE_URL}/submit_bug_report",
+            json={
+                "report_text": report_text,
+                "debug_console_text": debug_console_text,
+                "main_console_text": main_console_text, 
+                "scanner_version": VERSION},
+            timeout=_REQ_TIMEOUT
+        )
+        data = resp.json()
+        success = data.get("success", False)
+        return success
+    except (requests.RequestException, ValueError, KeyError) as e:
+        print(f"Error submitting bug report: {e}")
+        return False
+
 def _check_scanner_version() -> str:
     """Check if the scanner version is up to date"""
     try:

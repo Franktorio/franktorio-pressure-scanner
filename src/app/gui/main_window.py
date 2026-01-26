@@ -3,10 +3,12 @@
 # December 2025
 
 import datetime
+import threading
+import time
 import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit
+    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit, QPushButton, QLabel
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QKeySequence
@@ -30,6 +32,8 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     update_stop_scan_button_state = pyqtSignal(bool)   # Signal to update stop button state
     log_console_message = pyqtSignal(str)  # Signal to log messages to console
     version_check_ready = pyqtSignal(str)  # Signal when version check completes with latest version
+    forward_image_requested = pyqtSignal()  # Signal to request forward image
+    backward_image_requested = pyqtSignal()  # Signal to request backward image
     
     def __init__(self):
         super().__init__()
@@ -72,10 +76,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
         # Debug console window
         self.debug_console_window = DebugConsoleWindow(self)
+        
+        # Bug report window
+        self.bug_report_window = BugReportWindow(self)
 
         # Scanner object placeholder
         self.scanner = Scanner()
         self.setup_scanner()
+        self.setup_rotating_images()
             
     
     def _get_dpi_scale(self):
@@ -91,6 +99,30 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         except:
             pass
         return 1.0
+    
+    def _rotating_image_worker(self):
+        """Worker thread to handle rotating images every 5 seconds"""
+        while True:
+            if not self.loaded_images or not self.rotating_images_enabled:
+                time.sleep(0.5)
+                continue
+            
+            current_time = datetime.datetime.now().timestamp()
+            if current_time - self.last_image_change_time >= self.time_between_image_changes:
+                self.forward_image_requested.emit()
+                self.last_image_change_time = current_time
+    
+    def setup_rotating_images(self):
+        """Rotating image setup"""
+        self.current_image_index = 0
+        self.loaded_images = []
+        self.time_between_image_changes = 2 # Seconds
+        self.last_image_change_time = datetime.datetime.now().timestamp()
+        self.rotating_images_enabled = False  # Start with rotating disabled
+
+        self.rotating_image_thread = threading.Thread(target=self._rotating_image_worker, daemon=True)
+        self.rotating_image_thread.start()  # Start the thread
+
     
     def setup_scanner(self):
         """Setup scanner and connect signals"""
@@ -111,11 +143,16 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.persistent_window_button.clicked.connect(self.on_persistent_window_button_toggled)
         self.prev_image_button.clicked.connect(self.on_backward_image_button_clicked)
         self.next_image_button.clicked.connect(self.on_forward_image_button_clicked)
+        self.toggle_rotating_images_button.clicked.connect(self.on_toggle_rotating_images_clicked)
         
         # Connect console button signals
         self.clear_console_button.clicked.connect(self.on_clear_console_clicked)
         self.copy_console_button.clicked.connect(self.on_copy_console_clicked)
         self.set_log_dir_button.clicked.connect(self.on_set_log_dir_clicked)
+
+        # Connect image navigation signals
+        self.forward_image_requested.connect(self.on_forward_image_button_clicked)
+        self.backward_image_requested.connect(self.on_backward_image_button_clicked)
 
         # Emit empty log message
         self.log_console_message.emit(f"")
@@ -179,6 +216,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         # Download and display images
         self.current_image_index = 0
         self.loaded_images = []
+        self.last_image_change_time = datetime.datetime.now().timestamp()
 
         QApplication.processEvents()
 
@@ -268,6 +306,13 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.setWindowFlag(Qt.WindowStaysOnTopHint, self.persistent_window)
         self.persistent_window_button.setText("Persistent Window: ON" if self.persistent_window else "Persistent Window: OFF")
         self.show()
+    
+    def on_toggle_rotating_images_clicked(self):
+        """Slot to handle toggle rotating images button click"""
+        self.rotating_images_enabled = not self.rotating_images_enabled
+        self.toggle_rotating_images_button.setText("Rotating Images: ON" if self.rotating_images_enabled else "Rotating Images: OFF")
+        if self.rotating_images_enabled:
+            self.last_image_change_time = datetime.datetime.now().timestamp()
     
     def on_update_start_scan_button_state(self, enabled):
         """Slot to handle start scan button state updates"""
@@ -379,14 +424,36 @@ class DebugConsoleWindow(QMainWindow):
                     "border-radius": "10px",
                     "font-family": "Consolas, monospace",
                     "font-size": "10pt"
+                },
+                "QPushButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px",
+                    "padding": "5px"
+                },
+                "QPushButton:hover": {
+                    "background-color": COLORS['button_hover']
+                },
+                "QPushButton:pressed": {
+                    "background-color": COLORS['button_inactive']
                 }
             }
         }
         self.debug_text_area.setStyleSheet(convert_style_to_qss(text_area_style))
         self.setCentralWidget(self.debug_text_area)
 
+        # Add bug report button
+        self.bug_report_debug_button = QPushButton("Submit Bug Report", self.debug_text_area)
+        self.bug_report_debug_button.setGeometry(10, 10, 140, 30)
+
+        # Move button to bottom-right corner
+        self.bug_report_debug_button.move(self.width() - self.bug_report_debug_button.width() - 10,
+                                    self.height() - self.bug_report_debug_button.height() - 10)
+
         # Connect signal to slot
         self.debug_console_message.connect(self.log_debug_message)
+        self.bug_report_debug_button.clicked.connect(self.open_bug_report_window)
         
         # Add initial header
         self.debug_text_area.append("=" * 80)
@@ -403,6 +470,12 @@ class DebugConsoleWindow(QMainWindow):
         self.debug_text_area.setText(current_text[-MAX_CHARS:] + formatted_message + "\n")
         self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
 
+    def open_bug_report_window(self):
+        """Open the bug report window."""
+        # Get parent's bug report window
+        if hasattr(self.parent(), 'bug_report_window'):
+            self.parent().bug_report_window.show()
+    
     def update_stats(self, stats: dict):
         """Update and display current debug statistics."""
         self.debug_text_area.append("\n" + "=" * 80)
@@ -434,3 +507,74 @@ class DebugConsoleWindow(QMainWindow):
         
         self.debug_text_area.append("\n" + "=" * 80 + "\n")
         self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
+
+
+class BugReportWindow(QMainWindow):
+    """A window to submit bug reports."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Submit Bug Report")
+        self.setGeometry(200, 200, 600, 400)
+        
+        style = {
+            "styles": {
+                "QMainWindow": {
+                    "background-color": COLORS['background']
+                },
+                "QTextEdit": {
+                    "background-color": COLORS['surface'],
+                    "color": COLORS['text'],
+                    "padding": "10px",
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px",
+                    "font-family": "Consolas, monospace",
+                    "font-size": "10pt"
+                },
+                "QLabel": {
+                    "color": COLORS['text'],
+                    "background-color": COLORS['surface'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px"
+                },
+                "QPushButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px",
+                    "padding": "5px"
+                },
+                "QPushButton:hover": {
+                    "background-color": COLORS['button_hover']
+                }
+                
+            }
+        }
+
+        # Apply styles
+        self.setStyleSheet(convert_style_to_qss(style))
+
+
+        self.title_label = QLabel("FEATURE NOT IMPLEMENTED; DOES NOTHING", self)
+        self.title_label.setGeometry(20, 20, 560, 30)
+
+        self.bug_report_text_area = QTextEdit(self)
+        self.bug_report_text_area.setGeometry(20, 60, 560, 250)
+
+        self.submit_button = QPushButton("Submit Report", self)
+        self.submit_button.setGeometry(240, 330, 120, 40)
+    
+    def submit_report(self):
+        """Submit the bug report (functionality to be implemented)."""
+        report_text = self.bug_report_text_area.toPlainText()
+
+        # Get both the consoles' text for context
+        main_console_text = ""
+        debug_console_text = ""
+
+        if hasattr(self.parent(), 'console_text_area'):
+            main_console_text = self.parent().console_text_area.toPlainText()
+        
+        if hasattr(self.parent(), 'debug_console_window'):
+            debug_console_text = self.parent().debug_console_window.debug_text_area.toPlainText()
+
+        
