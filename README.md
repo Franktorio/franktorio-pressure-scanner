@@ -18,7 +18,7 @@ This tool allows you view what the researchers have documented in https://github
 
 ## Installation
 
-### Windows (.exe)
+### Windows
 
 1. Download the latest Windows release:
 > https://github.com/Franktorio/franktorio-pressure-scanner/releases
