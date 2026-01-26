@@ -10,10 +10,10 @@ import os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit, QPushButton, QLabel
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap, QKeySequence
+from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtGui import QPixmap, QKeySequence, QMovie
 
-from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION
+from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION, LOADING_GIF_PATH
 from .colors import COLORS, convert_style_to_qss
 from .window_controls import WindowControlsMixin
 from .widgets import WidgetSetupMixin
@@ -34,6 +34,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     version_check_ready = pyqtSignal(str)  # Signal when version check completes with latest version
     forward_image_requested = pyqtSignal()  # Signal to request forward image
     backward_image_requested = pyqtSignal()  # Signal to request backward image
+    images_loaded = pyqtSignal(list, list, str)  # Signal when images are loaded (image_data_list, picture_urls, room_name)
     
     def __init__(self):
         super().__init__()
@@ -112,13 +113,67 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                 self.forward_image_requested.emit()
                 self.last_image_change_time = current_time
     
+    def _show_loading_gif(self):
+        """Display the loading gif animation"""
+        self.loading_movie = QMovie(LOADING_GIF_PATH)
+        self.loading_movie.setScaledSize(QSize(50, 50))
+        self.display_image_label.setMovie(self.loading_movie)
+        self.loading_movie.start()
+    
+    def _download_images_thread(self, picture_urls, room_name):
+        """Thread worker to download remaining images (after first)"""
+        downloaded_images = []
+        # Skip first image since it's already downloaded
+        for url in picture_urls[1:]:
+            # Check if we're still on the same room before downloading
+            if self.current_room_name != room_name:
+                # Room changed, abort this download
+                return
+            image_data = download_image(url)
+            downloaded_images.append(image_data)
+        
+        # Emit signal with downloaded images and room name for validation
+        self.images_loaded.emit(downloaded_images, picture_urls, room_name)
+    
+    def on_images_loaded(self, image_data_list, picture_urls, room_name):
+        """Slot to handle when remaining images have been downloaded"""
+        if self.current_room_name != room_name:
+            # Room has changed, ignore these images
+            return
+        
+        self.loaded_images.extend(image_data_list)
+        
+        # If user is still viewing a loaded image, update display if loading gif is showing
+        if self.current_image_index < len(self.loaded_images):
+            # Stop loading gif if it's showing
+            if hasattr(self, 'loading_movie') and self.loading_movie.state() == QMovie.Running:
+                self.loading_movie.stop()
+                self.display_image_label.setMovie(None)
+                # Display the now-loaded image
+                current_image = self.loaded_images[self.current_image_index]
+                if current_image:
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(current_image)
+                    scaled_pixmap = pixmap.scaled(
+                        self.display_image_label.width(),
+                        self.display_image_label.height(),
+                        Qt.KeepAspectRatioByExpanding,
+                        Qt.SmoothTransformation
+                    )
+                    self.display_image_label.setPixmap(scaled_pixmap)
+            
+            # Update counter
+            self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
+    
     def setup_rotating_images(self):
         """Rotating image setup"""
         self.current_image_index = 0
         self.loaded_images = []
-        self.time_between_image_changes = 2 # Seconds
+        self.total_images_expected = 0  # Track total expected images for counter
+        self.time_between_image_changes = 5 # Seconds
         self.last_image_change_time = datetime.datetime.now().timestamp()
         self.rotating_images_enabled = False  # Start with rotating disabled
+        self.current_room_name = None  # Track which room's images are currently being downloaded
 
         self.rotating_image_thread = threading.Thread(target=self._rotating_image_worker, daemon=True)
         self.rotating_image_thread.start()  # Start the thread
@@ -153,6 +208,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         # Connect image navigation signals
         self.forward_image_requested.connect(self.on_forward_image_button_clicked)
         self.backward_image_requested.connect(self.on_backward_image_button_clicked)
+        self.images_loaded.connect(self.on_images_loaded)
 
         # Emit empty log message
         self.log_console_message.emit(f"")
@@ -213,12 +269,12 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.room_description_label.adjustSize()
         self.room_tags_label.adjustSize()
 
-        # Download and display images
+        # Reset image state
         self.current_image_index = 0
         self.loaded_images = []
+        self.total_images_expected = 0
         self.last_image_change_time = datetime.datetime.now().timestamp()
-
-        QApplication.processEvents()
+        self.current_room_name = room_name  # Track current room to prevent race conditions
 
         # Exit early if no images
         if not room_info.picture_urls:
@@ -226,14 +282,30 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             self.image_counter_label.setText("0/0")
             return
         
-        # Download first image
+        # Set total expected images
+        self.total_images_expected = len(room_info.picture_urls)
+        
+        # Update window
+        QApplication.processEvents()
+        
+        # Show loading gif while first image downloads
+        self._show_loading_gif()
+        self.image_counter_label.setText(f"Loading...")
+
+        QApplication.processEvents()
+        
+        # Download first image immediately
         first_image_data = download_image(room_info.picture_urls[0])
-        self.loaded_images.append(first_image_data)
-
-        total_images = len(room_info.picture_urls)
-        self.image_counter_label.setText(f"1/{total_images}")
-
-        # Display the first image
+        
+        # Stop loading gif
+        if hasattr(self, 'loading_movie'):
+            self.loading_movie.stop()
+            self.display_image_label.setMovie(None)
+        
+        # Store and display first image
+        self.loaded_images = [first_image_data]
+        self.image_counter_label.setText(f"1/{self.total_images_expected}")
+        
         if first_image_data:
             pixmap = QPixmap()
             pixmap.loadFromData(first_image_data)
@@ -244,60 +316,74 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                 Qt.SmoothTransformation
             )
             self.display_image_label.setPixmap(scaled_pixmap)
+        
         QApplication.processEvents()
-
-        # Load rest of the images
-        for url in room_info.picture_urls[1:]:
-            image_data = download_image(url)
-            self.loaded_images.append(image_data)
-            QApplication.processEvents()
+        
+        # Start threaded download for remaining images
+        if len(room_info.picture_urls) > 1:
+            download_thread = threading.Thread(
+                target=self._download_images_thread,
+                args=(room_info.picture_urls, room_name),
+                daemon=True
+            )
+            download_thread.start()
 
 
     def on_forward_image_button_clicked(self):
         """Slot to handle forward image button click"""
-        if not self.loaded_images:
+        if self.total_images_expected == 0:
             return
-        self.current_image_index = (self.current_image_index + 1) % len(self.loaded_images)
         
-        # Update counter label
-        total_images = len(self.loaded_images)
-        self.image_counter_label.setText(f"{self.current_image_index + 1}/{total_images}")
+        # Calculate next index based on total expected images
+        self.current_image_index = (self.current_image_index + 1) % self.total_images_expected
         
-        current_image = self.loaded_images[self.current_image_index]
-
-        if current_image:
-            pixmap = QPixmap()
-            pixmap.loadFromData(current_image)
-            scaled_pixmap = pixmap.scaled(
-                self.display_image_label.width(),
-                self.display_image_label.height(),
-                Qt.KeepAspectRatioByExpanding,
-                Qt.SmoothTransformation
-            )
-            self.display_image_label.setPixmap(scaled_pixmap)
+        # Update counter label with total expected images
+        self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
+        
+        # Check if the image at this index has been loaded yet
+        if self.current_image_index < len(self.loaded_images):
+            current_image = self.loaded_images[self.current_image_index]
+            if current_image:
+                pixmap = QPixmap()
+                pixmap.loadFromData(current_image)
+                scaled_pixmap = pixmap.scaled(
+                    self.display_image_label.width(),
+                    self.display_image_label.height(),
+                    Qt.KeepAspectRatioByExpanding,
+                    Qt.SmoothTransformation
+                )
+                self.display_image_label.setPixmap(scaled_pixmap)
+        else:
+            # Image not loaded yet, show loading gif
+            self._show_loading_gif()
 
     def on_backward_image_button_clicked(self):
         """Slot to handle backward image button click"""
-        if not self.loaded_images:
+        if self.total_images_expected == 0:
             return
-        self.current_image_index = (self.current_image_index - 1) % len(self.loaded_images)
         
-        # Update counter label
-        total_images = len(self.loaded_images)
-        self.image_counter_label.setText(f"{self.current_image_index + 1}/{total_images}")
+        # Calculate previous index based on total expected images
+        self.current_image_index = (self.current_image_index - 1) % self.total_images_expected
         
-        current_image = self.loaded_images[self.current_image_index]
-
-        if current_image:
-            pixmap = QPixmap()
-            pixmap.loadFromData(current_image)
-            scaled_pixmap = pixmap.scaled(
-                self.display_image_label.width(),
-                self.display_image_label.height(),
-                Qt.KeepAspectRatioByExpanding,
-                Qt.SmoothTransformation
-            )
-            self.display_image_label.setPixmap(scaled_pixmap)
+        # Update counter label with total expected images
+        self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
+        
+        # Check if the image at this index has been loaded yet
+        if self.current_image_index < len(self.loaded_images):
+            current_image = self.loaded_images[self.current_image_index]
+            if current_image:
+                pixmap = QPixmap()
+                pixmap.loadFromData(current_image)
+                scaled_pixmap = pixmap.scaled(
+                    self.display_image_label.width(),
+                    self.display_image_label.height(),
+                    Qt.KeepAspectRatioByExpanding,
+                    Qt.SmoothTransformation
+                )
+                self.display_image_label.setPixmap(scaled_pixmap)
+        else:
+            # Image not loaded yet, show loading gif
+            self._show_loading_gif()
 
 
     def on_persistent_window_button_toggled(self):

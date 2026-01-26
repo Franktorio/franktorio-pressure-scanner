@@ -26,71 +26,103 @@ def _run_in_executor(func, *args, **kwargs):
 
 def _submit_bug_report(report_text: str, debug_console_text: str, main_console_text: str) -> bool:
     """Submit a bug report to the API"""
-    try:
-        resp = requests.post(
-            f"{API_BASE_URL}/submit_bug_report",
-            json={
-                "report_text": report_text,
-                "debug_console_text": debug_console_text,
-                "main_console_text": main_console_text, 
-                "scanner_version": VERSION},
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
-        success = data.get("success", False)
-        return success
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error submitting bug report: {e}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                f"{API_BASE_URL}/submit_bug_report",
+                json={
+                    "report_text": report_text,
+                    "debug_console_text": debug_console_text,
+                    "main_console_text": main_console_text, 
+                    "scanner_version": VERSION},
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
+            success = data.get("success", False)
+            return success
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error submitting bug report (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error submitting bug report after {max_retries} attempts: {e}")
+            return False
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error submitting bug report: {e}")
+            return False
 
 def _check_scanner_version() -> str:
     """Check if the scanner version is up to date"""
-    try:
-        resp = requests.post(
-            f"{API_BASE_URL}/check_version",
-            json={"scanner_version": VERSION},
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
-        print(data)
-        return data.get("latest_version", "unknown")
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error checking scanner version: {e}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                f"{API_BASE_URL}/check_version",
+                json={"scanner_version": VERSION},
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
+            print(data)
+            return data.get("latest_version", "unknown")
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error checking version (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error checking scanner version after {max_retries} attempts: {e}")
+            return False
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error checking scanner version: {e}")
+            return False
 
 def _request_session() -> bool:
     """Request a new session from the API"""
-    try:
-        resp = requests.post(
-            f"{API_BASE_URL}/request_session",
-            json={"scanner_version": VERSION},
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                f"{API_BASE_URL}/request_session",
+                json={"scanner_version": VERSION},
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
 
-        session_config.set_session(data["session_id"], data["password"])
-        
-        return data.get("success", False)
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error requesting session: {e}")
-        return False
+            session_config.set_session(data["session_id"], data["password"])
+            
+            return data.get("success", False)
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error requesting session (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error requesting session after {max_retries} attempts: {e}")
+            return False
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error requesting session: {e}")
+            return False
 
 def _end_session() -> bool:
     """End the current session"""
-    try:
-        session_id, password = session_config.get_session()
-        
-        resp = requests.post(
-            f"{API_BASE_URL}/end_session",
-            json={"session_id": session_id, "password": password},
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
-        success = data.get("success", False)
-        return success
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error ending session: {e}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            session_id, password = session_config.get_session()
+            
+            resp = requests.post(
+                f"{API_BASE_URL}/end_session",
+                json={"session_id": session_id, "password": password},
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
+            success = data.get("success", False)
+            return success
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error ending session (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error ending session after {max_retries} attempts: {e}")
+            return False
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error ending session: {e}")
+            return False
 
 def _get_room_info(room_name: str) -> RoomInfo | None:
     """
@@ -101,30 +133,38 @@ def _get_room_info(room_name: str) -> RoomInfo | None:
             - room_info: Room information if successful, None otherwise
             - had_error: True if there was a connection/auth error, False if room just doesn't exist
     """
-    try:
-        session_id, password = session_config.get_session()
-        
-        resp = requests.post(
-            f"{API_BASE_URL}/get_roominfo",
-            json={
-                "room_name": room_name,
-                "session_id": session_id,
-                "password": password
-            },
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
-        if data.get("success"):
-            # Ensure room_name is included in the response data
-            room_info_data = data["room_info"]
-            room_info_data["room_name"] = room_name
-            return RoomInfo(**room_info_data)
-        else:
-            # Return RoomInfo with only the room name + (Undocumented) next to it
-            return RoomInfo(room_name=f"{room_name} (Undocumented)")
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error getting room info for {room_name}: {e}")
-        return None
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            session_id, password = session_config.get_session()
+            
+            resp = requests.post(
+                f"{API_BASE_URL}/get_roominfo",
+                json={
+                    "room_name": room_name,
+                    "session_id": session_id,
+                    "password": password
+                },
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
+            if data.get("success"):
+                # Ensure room_name is included in the response data
+                room_info_data = data["room_info"]
+                room_info_data["room_name"] = room_name
+                return RoomInfo(**room_info_data)
+            else:
+                # Return RoomInfo with only the room name + (Undocumented) next to it
+                return RoomInfo(room_name=f"{room_name} (Undocumented)")
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error getting room info for {room_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error getting room info for {room_name} after {max_retries} attempts: {e}")
+            return None
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error getting room info for {room_name}: {e}")
+            return None
 
 def _log_room_encounter(room_name: str) -> bool:
     """
@@ -135,24 +175,32 @@ def _log_room_encounter(room_name: str) -> bool:
             - success: True if encounter was logged successfully
             - had_error: True if there was a connection/auth error, False otherwise
     """
-    try:
-        session_id, password = session_config.get_session()
-        
-        resp = requests.post(
-            f"{API_BASE_URL}/room_encountered",
-            json={
-                "room_name": room_name,
-                "session_id": session_id,
-                "password": password
-            },
-            timeout=_REQ_TIMEOUT
-        )
-        data = resp.json()
-        success = data.get("success", False)
-        return success
-    except (requests.RequestException, ValueError, KeyError) as e:
-        print(f"Error logging room encounter for {room_name}: {e}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            session_id, password = session_config.get_session()
+            
+            resp = requests.post(
+                f"{API_BASE_URL}/room_encountered",
+                json={
+                    "room_name": room_name,
+                    "session_id": session_id,
+                    "password": password
+                },
+                timeout=_REQ_TIMEOUT
+            )
+            data = resp.json()
+            success = data.get("success", False)
+            return success
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt < max_retries - 1:
+                print(f"Timeout/Connection error logging room encounter for {room_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                continue
+            print(f"Error logging room encounter for {room_name} after {max_retries} attempts: {e}")
+            return False
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Error logging room encounter for {room_name}: {e}")
+            return False
     
 async def request_session() -> bool:
     """Asynchronously request a new session from the API"""

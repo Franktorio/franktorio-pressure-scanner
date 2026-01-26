@@ -18,7 +18,7 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-VERSION = "1.4.7" # Application Version
+VERSION = "1.5.6" # Application Version
 
 # API Base URL for the application
 API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'
@@ -31,6 +31,7 @@ if platform.system() == 'Darwin':
 else:
     APP_ICON_PATH = get_resource_path('config/images/researchfrankbadge.ico')
 APP_ICON_PNG_PATH = get_resource_path('config/images/researchfrankbadge.png')
+LOADING_GIF_PATH = get_resource_path('config/images/loading_gif.gif')
 
 # GUI Configuration
 RESIZE_MARGIN = 5
