@@ -8,7 +8,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -32,6 +32,10 @@ jobs:
         if: runner.os == 'macOS'
         run: pyinstaller --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.icns --add-data "config/images:config/images"
 
+      - name: Build Application (Linux)
+        if: runner.os == 'Linux'
+        run: pyinstaller --onefile main.py --name=franktorio-research-scanner --add-data "config/images:config/images"
+
       - name: Create macOS ZIP
         if: runner.os == 'macOS'
         run: |
@@ -42,13 +46,53 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: Franktorio-Research-Scanner-Windows
+          name: windows-build
           path: dist/franktorio-research-scanner.exe
 
       - name: Upload Artifact (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: Franktorio-Research-Scanner-macOS
+          name: macos-build
           path: dist/franktorio-research-scanner-macOS.zip
+
+      - name: Upload Artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/franktorio-research-scanner
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows Build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: builds/windows
+
+      - name: Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: builds/macos
+
+      - name: Download Linux Build
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: builds/linux
+
+      - name: Create Combined ZIP
+        run: |
+          cd builds
+          zip -r franktorio-research-scanner-all-platforms.zip windows macos linux
+
+      - name: Upload Combined Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Franktorio-Research-Scanner-All-Platforms
+          path: builds/franktorio-research-scanner-all-platforms.zip
 
