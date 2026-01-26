@@ -5,7 +5,6 @@
 import os
 import sys
 import platform
-from uuid import MAX
 import src.app.user_data.appdata as appdata
 
 def get_resource_path(relative_path):
