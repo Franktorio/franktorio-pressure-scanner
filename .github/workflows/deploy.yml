@@ -30,7 +30,13 @@ jobs:
 
       - name: Build Application (macOS)
         if: runner.os == 'macOS'
-        run: pyinstaller --onefile --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.icns --add-data "config/images:config/images"
+        run: pyinstaller --windowed main.py --name=franktorio-research-scanner --icon=config/images/researchfrankbadge.icns --add-data "config/images:config/images"
+
+      - name: Create macOS ZIP
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r franktorio-research-scanner-macOS.zip franktorio-research-scanner.app
 
       - name: Upload Artifact (Windows)
         if: runner.os == 'Windows'
@@ -44,5 +50,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Franktorio-Research-Scanner-macOS
-          path: dist/franktorio-research-scanner
+          path: dist/franktorio-research-scanner-macOS.zip
 
