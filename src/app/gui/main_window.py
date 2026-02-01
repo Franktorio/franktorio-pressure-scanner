@@ -747,7 +747,7 @@ class SyncWindow(QMainWindow):
         # Apply styles
         self.setStyleSheet(convert_style_to_qss(style))
 
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, parent.persistent_window)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         
         # Create central widget and layout
         central_widget = QWidget(self)
@@ -790,7 +790,7 @@ class SyncWindow(QMainWindow):
         layout.addWidget(title_label)
         
         # Players list
-        players_label = QLabel("None")
+        players_label = QLabel("")
         players_label.setFont(QFont("Segoe UI", 8))
         players_label.setWordWrap(True)
         layout.addWidget(players_label)
@@ -816,8 +816,13 @@ class SyncWindow(QMainWindow):
         room_name_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
         layout.addWidget(room_name_label)
         
+        # Players title label (bold)
+        players_title_label = QLabel("<b>Players:</b>")
+        players_title_label.setFont(QFont("Segoe UI", 8))
+        layout.addWidget(players_title_label)
+        
         # Players list
-        players_label = QLabel("Players: None")
+        players_label = QLabel("")
         players_label.setFont(QFont("Segoe UI", 8))
         players_label.setWordWrap(True)
         layout.addWidget(players_label)
@@ -828,7 +833,10 @@ class SyncWindow(QMainWindow):
         image_label.setAlignment(Qt.AlignCenter)
         image_label.setMinimumHeight(70)
         image_label.setMaximumHeight(70)
+        image_label.setMinimumWidth(300)
+        image_label.setMaximumWidth(300)
         image_label.setScaledContents(False)
+        image_label.setSizePolicy(image_label.sizePolicy().horizontalPolicy(), image_label.sizePolicy().verticalPolicy())
         layout.addWidget(image_label)
         
         # Store references for later updates
@@ -844,20 +852,21 @@ class SyncWindow(QMainWindow):
             widget = self.room_widgets[index]
             widget.room_name_label.setText(room_name)
             
-            # Display list of players or "None" if empty
+            # Display list of players or empty if none
             if players_list:
-                players_text = f"Players: {', '.join(players_list)}"
+                players_text = ", ".join(players_list)
             else:
-                players_text = "Players: None"
+                players_text = ""
             widget.players_label.setText(players_text)
             
             if image_data:
                 pixmap = QPixmap()
                 pixmap.loadFromData(image_data)
+                # Use fixed size for scaling to prevent widget growth
                 scaled_pixmap = pixmap.scaled(
-                    widget.image_label.width(),
-                    widget.image_label.height(),
-                    Qt.KeepAspectRatioByExpanding,
+                    300,
+                    70,
+                    Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
                 widget.image_label.setPixmap(scaled_pixmap)
@@ -937,7 +946,7 @@ class SyncWindow(QMainWindow):
                 player_names = sorted(list(self.players.keys()))
                 players_text = ", ".join(player_names)
             else:
-                players_text = "None"
+                players_text = ""
             self.player_list_widget.players_label.setText(players_text)
             QApplication.processEvents()  # Update UI
         

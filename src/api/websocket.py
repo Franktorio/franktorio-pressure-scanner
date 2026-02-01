@@ -51,6 +51,13 @@ async def report_encountered_room(websocket: websockets.WebSocketClientProtocol,
     }
     return await _send_json_via_websocket(websocket, data)
 
+async def send_ping(websocket: websockets.WebSocketClientProtocol) -> bool:
+    """Send a ping event to keep connection alive."""
+    data = {
+        "event": "ping"
+    }
+    return await _send_json_via_websocket(websocket, data)
+
 
 # GUI Signal references (set by main window)
 _gui_add_player_signal = None
@@ -111,6 +118,15 @@ async def websocket_loop(username: str, socket_name: str, current_room: str) -> 
         # Send join event to register with the server
         await send_join_room_event(websocket, socket_name)
         
+        # Create a task to send periodic pings
+        async def ping_task():
+            while True:
+                await asyncio.sleep(5)  # Send ping every 5 seconds
+                await send_ping(websocket)
+        
+        # Start the ping task
+        ping_worker = asyncio.create_task(ping_task())
+        
         while True:
             message = await websocket.recv()
             data = json.loads(message)
@@ -151,6 +167,9 @@ async def websocket_loop(username: str, socket_name: str, current_room: str) -> 
     except asyncio.CancelledError:
         print("Websocket loop cancelled.")
     finally:
+        # Cancel the ping task if it exists
+        if 'ping_worker' in locals():
+            ping_worker.cancel()
         # Clear the active websocket reference
         _active_websocket = None
         await websocket.close()
