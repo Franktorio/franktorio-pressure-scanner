@@ -3,6 +3,7 @@
 # December 2025
 
 import datetime
+from email.mime import application
 import threading
 import time
 import asyncio
@@ -712,7 +713,7 @@ class SyncWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Sync - Room Status")
-        self.setGeometry(300, 100, 350, 650)
+        self.setGeometry(300, 100, 350, 780)
         
         style = {
             "styles": {
@@ -723,6 +724,12 @@ class SyncWindow(QMainWindow):
                     "background-color": COLORS['surface_light'],
                     "border": f"1px solid {COLORS['border']}",
                     "border-radius": "10px"
+                },
+                ".player-list-widget": {
+                    "background-color": COLORS['surface_light'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px",
+                    "padding": "8px"
                 },
                 "QLabel": {
                     "color": COLORS['text'],
@@ -751,15 +758,45 @@ class SyncWindow(QMainWindow):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
         
-        # Create 5 room widgets
+        # Create player list widget at the top
+        self.player_list_widget = self._create_player_list_widget()
+        main_layout.addWidget(self.player_list_widget)
+        
+        # Create 6 room widgets
         self.room_widgets = []
-        for i in range(5):
+        for i in range(6):
             room_widget = self._create_room_widget(i + 1)
             self.room_widgets.append(room_widget)
             main_layout.addWidget(room_widget)
         
         # Add stretch at the bottom to keep widgets at top
         main_layout.addStretch()
+    
+    def _create_player_list_widget(self):
+        """Create a widget to display all players currently in the socket."""
+        widget = QWidget()
+        widget.setObjectName("player-list-widget")
+        widget.setProperty("class", "player-list-widget")
+        widget.setMinimumHeight(50)
+        widget.setMaximumHeight(80)
+        
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(3)
+        
+        # Title
+        title_label = QLabel("Connected Players")
+        title_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        layout.addWidget(title_label)
+        
+        # Players list
+        players_label = QLabel("None")
+        players_label.setFont(QFont("Segoe UI", 8))
+        players_label.setWordWrap(True)
+        layout.addWidget(players_label)
+        
+        widget.players_label = players_label
+        return widget
     
     def _create_room_widget(self, room_number):
         """Create a single room widget with room name, players, and image."""
@@ -869,6 +906,12 @@ class SyncWindow(QMainWindow):
         
         if room_name not in self.encountered_rooms:
             self.encountered_rooms.insert(0, room_name)  # Add to front
+            if len(self.encountered_rooms) > 6:
+                self.encountered_rooms = self.encountered_rooms[:6]  # Keep only 6 most recent
+            
+            self._update_display()  # Update display before downloading
+            QApplication.processEvents()  # Update UI
+            
             # Get room info and download first image
             room_info = _get_room_info(room_name)
             if room_info and room_info.picture_urls:
@@ -876,9 +919,9 @@ class SyncWindow(QMainWindow):
                 self.image_map[room_name] = image_data
             else:
                 self.image_map[room_name] = None
-            if len(self.encountered_rooms) > 5:
-                self.encountered_rooms = self.encountered_rooms[:5]  # Keep only 5 most recent
-            self._update_display()
+            
+            self._update_display()  # Update again after image download
+            QApplication.processEvents()  # Update UI
     
     def _update_display(self):
         """Update the display with current room and player data."""
@@ -887,6 +930,16 @@ class SyncWindow(QMainWindow):
             self.encountered_rooms = []
         if not hasattr(self, 'players'):
             self.players = {}
+        
+        # Update player list widget
+        if hasattr(self, 'player_list_widget'):
+            if self.players:
+                player_names = sorted(list(self.players.keys()))
+                players_text = ", ".join(player_names)
+            else:
+                players_text = "None"
+            self.player_list_widget.players_label.setText(players_text)
+            QApplication.processEvents()  # Update UI
         
         # Collect player names per room
         room_players = {}
@@ -897,12 +950,13 @@ class SyncWindow(QMainWindow):
                     room_players[current_room] = []
                 room_players[current_room].append(username)
         
-        # Update widgets with the 5 most recent rooms
-        for i in range(5):
+        # Update widgets with the 6 most recent rooms
+        for i in range(6):
+            QApplication.processEvents()  # Update UI during iteration
             if i < len(self.encountered_rooms):
                 room_name = self.encountered_rooms[i]
                 players_list = room_players.get(room_name, [])
-                image_data = self.image_map.get(room_name)
+                image_data = self.image_map.get(room_name) if hasattr(self, 'image_map') else None
                 self.update_room_widget(i, room_name, players_list, image_data)
             else:
                 self.update_room_widget(i, f"Room {i + 1}", [])

@@ -10,7 +10,7 @@ SOCKET_BASE_URL = "wss://franktorio.dev/frd-wss/scanner-socket"
 
 async def _connect_scanner_websocket(username: str, socket_name: str, current_room: str) -> websockets.WebSocketClientProtocol | None:
     """Connect to the scanner websocket server with the provided token."""
-    url = f"{SOCKET_BASE_URL}/{socket_name}?username={username}?current_room={current_room}"
+    url = f"{SOCKET_BASE_URL}/{socket_name}?username={username}&current_room={current_room}"
     for attempt in range(3):
         try:
             websocket = await websockets.connect(url, ping_interval=20, ping_timeout=10)
@@ -39,6 +39,7 @@ async def send_join_room_event(websocket: websockets.WebSocketClientProtocol, ro
     """Send a 'join_room' event via the websocket."""
     data = {
         "event": "join",
+        "room_name": room_name
     }
     return await _send_json_via_websocket(websocket, data)
 
