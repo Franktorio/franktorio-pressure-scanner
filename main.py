@@ -3,7 +3,8 @@
 # December 2025
 
 import sys
-from PyQt5.QtCore import QSharedMemory
+import os
+from PyQt5.QtCore import QSharedMemory, Qt
 from src.app.gui import MainWindow
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon
@@ -11,6 +12,19 @@ from PyQt5.QtGui import QIcon
 from src.app.user_data.appdata import setup_user_data, get_value_from_config
 setup_user_data()
 from config.vars import APP_ICON_PATH
+
+# Enable high DPI scaling support for Windows
+if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
+if sys.platform == 'win32':
+    try:
+        from ctypes import windll
+        windll.shcore.SetProcessDpiAwareness(2)
+    except:
+        pass
 
 app = QApplication(sys.argv)
 app.setApplicationName("Franktorio Research Scanner")

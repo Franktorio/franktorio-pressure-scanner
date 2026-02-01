@@ -314,6 +314,12 @@ class WidgetSetupMixin:
         self.persistent_window_button.setFixedHeight(int(20 * self.dpi_scale))
         title_layout.addWidget(self.persistent_window_button)
         
+        # Create Sync button
+        self.sync_button = QPushButton("Sync", self.title_bar)
+        self.sync_button.setMinimumWidth(int(50 * self.dpi_scale))
+        self.sync_button.setFixedHeight(int(20 * self.dpi_scale))
+        title_layout.addWidget(self.sync_button)
+        
         # Create X button on right side
         self.close_button = QPushButton("X", self.title_bar)
         self.close_button.clicked.connect(self.close)

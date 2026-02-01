@@ -5,13 +5,15 @@
 import datetime
 import threading
 import time
+import asyncio
 import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit, QPushButton, QLabel
+    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit, QPushButton, QLabel,
+    QWidget, QVBoxLayout, QHBoxLayout, QInputDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QPixmap, QKeySequence, QMovie
+from PyQt5.QtGui import QPixmap, QKeySequence, QMovie, QFont
 
 from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION, LOADING_GIF_PATH
 from .colors import COLORS, convert_style_to_qss
@@ -22,7 +24,7 @@ from src.app.scanner.scanner import Scanner
 from src.api.scanner import RoomInfo
 from src.api.images import download_image
 
-from src.app.user_data.appdata import set_value_in_config
+from src.app.user_data.appdata import set_value_in_config, get_value_from_config
 
 class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     # Define signals
@@ -36,10 +38,28 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     backward_image_requested = pyqtSignal()  # Signal to request backward image
     images_loaded = pyqtSignal(list, list, str)  # Signal when images are loaded (image_data_list, picture_urls, room_name)
     
+    # Websocket signals for sync functionality
+    ws_add_player = pyqtSignal(str)  # Signal to add player to sync window
+    ws_remove_player = pyqtSignal(str)  # Signal to remove player from sync window
+    ws_change_player_room = pyqtSignal(str, str)  # Signal to change player room (username, room_name)
+    ws_new_room_encounter = pyqtSignal(str)  # Signal for new room encounter (room_name)
+    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Franktorio Research Scanner")
-        self.setGeometry(100, 100, MIN_WIDTH, MIN_HEIGHT)
+        
+        # Load saved window geometry or use defaults
+        saved_geometry = get_value_from_config("window_geometry", None)
+        if saved_geometry and isinstance(saved_geometry, dict):
+            self.setGeometry(
+                saved_geometry.get("x", 100),
+                saved_geometry.get("y", 100),
+                saved_geometry.get("width", MIN_WIDTH),
+                saved_geometry.get("height", MIN_HEIGHT)
+            )
+        else:
+            self.setGeometry(100, 100, MIN_WIDTH, MIN_HEIGHT)
+        
         style = {
             "styles": {
                 "QMainWindow": {
@@ -74,12 +94,22 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.log_console_message.connect(self.on_log_console_message)
         self.version_check_ready.connect(self.on_version_check_ready)
         self.debug_console_button.clicked.connect(self.on_debug_console_button_clicked)
+        self.sync_button.clicked.connect(self.on_sync_button_clicked)
 
         # Debug console window
         self.debug_console_window = DebugConsoleWindow(self)
         
         # Bug report window
         self.bug_report_window = BugReportWindow(self)
+        
+        # Sync window
+        self.sync_window = SyncWindow(self)
+        
+        # Websocket tracking
+        self.websocket_thread = None
+        self.websocket_loop = None
+        self.websocket_task = None
+        self.is_syncing = False
 
         # Scanner object placeholder
         self.scanner = Scanner()
@@ -209,6 +239,12 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.forward_image_requested.connect(self.on_forward_image_button_clicked)
         self.backward_image_requested.connect(self.on_backward_image_button_clicked)
         self.images_loaded.connect(self.on_images_loaded)
+        
+        # Connect websocket signals
+        self.ws_add_player.connect(self.sync_window.add_player)
+        self.ws_remove_player.connect(self.sync_window.remove_player)
+        self.ws_change_player_room.connect(self.sync_window.change_player_room)
+        self.ws_new_room_encounter.connect(self.sync_window.new_room_encounter)
 
         # Emit empty log message
         self.log_console_message.emit(f"")
@@ -226,6 +262,60 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, 'main_widget'):
             self._update_widget_sizes()
+    
+    def _start_websocket_sync(self, username: str, socket_name: str):
+        """Start websocket connection in a separate thread"""
+        from src.api.websocket import websocket_loop, set_gui_signals
+        
+        # Set the GUI signals for the websocket module
+        set_gui_signals(
+            self.ws_add_player,
+            self.ws_remove_player,
+            self.ws_change_player_room,
+            self.ws_new_room_encounter
+        )
+        
+        def run_websocket():
+            """Run websocket loop in a separate thread"""
+            self.websocket_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.websocket_loop)
+            if self.scanner:
+                current_room = self.scanner.latest_rooms[-1] if self.scanner.latest_rooms else "Unknown"
+            try:
+                self.websocket_loop.run_until_complete(websocket_loop(username, socket_name, current_room))
+            except Exception as e:
+                print(f"Websocket error: {e}")
+            finally:
+                self.websocket_loop.close()
+        
+        self.websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+        self.websocket_thread.start()
+    
+    def _stop_websocket_sync(self):
+        """Stop websocket connection"""
+        if self.websocket_loop:
+            try:
+                self.websocket_loop.call_soon_threadsafe(self.websocket_loop.stop)
+            except:
+                pass
+        self.websocket_thread = None
+        self.sync_window.clear_all()
+    
+    def closeEvent(self, event):
+        """Save window geometry before closing"""
+        # Stop websocket if running
+        if self.is_syncing:
+            self._stop_websocket_sync()
+        
+        geometry = self.geometry()
+        window_geometry = {
+            "x": geometry.x(),
+            "y": geometry.y(),
+            "width": geometry.width(),
+            "height": geometry.height()
+        }
+        set_value_in_config("window_geometry", window_geometry)
+        super().closeEvent(event)
 
     def on_log_console_message(self, message: str):
         """Slot to handle logging messages to console"""
@@ -294,8 +384,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
         QApplication.processEvents()
         
-        # Download first image immediately
-        first_image_data = download_image(room_info.picture_urls[0])
         
         # Stop loading gif
         if hasattr(self, 'loading_movie'):
@@ -303,30 +391,26 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             self.display_image_label.setMovie(None)
         
         # Store and display first image
-        self.loaded_images = [first_image_data]
         self.image_counter_label.setText(f"1/{self.total_images_expected}")
-        
-        if first_image_data:
-            pixmap = QPixmap()
-            pixmap.loadFromData(first_image_data)
-            scaled_pixmap = pixmap.scaled(
-                self.display_image_label.width(),
-                self.display_image_label.height(),
-                Qt.KeepAspectRatioByExpanding,
-                Qt.SmoothTransformation
-            )
-            self.display_image_label.setPixmap(scaled_pixmap)
-        
-        QApplication.processEvents()
-        
-        # Start threaded download for remaining images
-        if len(room_info.picture_urls) > 1:
-            download_thread = threading.Thread(
-                target=self._download_images_thread,
-                args=(room_info.picture_urls, room_name),
-                daemon=True
-            )
-            download_thread.start()
+        loaded_first_image = False
+        for url in room_info.picture_urls:
+            image_data = download_image(url)
+            if image_data:
+                self.loaded_images.append(image_data)
+                if not loaded_first_image:
+                    # Display first image immediately
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(image_data)
+                    scaled_pixmap = pixmap.scaled(
+                        self.display_image_label.width(),
+                        self.display_image_label.height(),
+                        Qt.KeepAspectRatioByExpanding,
+                        Qt.SmoothTransformation
+                    )
+                    self.display_image_label.setPixmap(scaled_pixmap)
+                    loaded_first_image = True
+            QApplication.processEvents()
+
 
 
     def on_forward_image_button_clicked(self):
@@ -414,6 +498,34 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         stats = self.scanner.get_debug_stats()
         self.debug_console_window.update_stats(stats)
         self.debug_console_window.show()
+    
+    def on_sync_button_clicked(self):
+        """Slot to handle sync button click"""
+        if not self.is_syncing:
+            
+            username, ok1 = QInputDialog.getText(self, "Sync - Enter Username", "Username:")
+            if not ok1 or not username:
+                return
+            
+            socket_name, ok2 = QInputDialog.getText(self, "Sync - Enter Socket Name", "Socket Name:")
+            if not ok2 or not socket_name:
+                return
+            
+            # Start websocket connection
+            self._start_websocket_sync(username, socket_name)
+            self.sync_button.setText("Stop Sync")
+            self.is_syncing = True
+            self.log_console_message.emit(f"Starting sync with socket '{socket_name}' as '{username}'...")
+        else:
+            # Stop websocket connection
+            self._stop_websocket_sync()
+            self.sync_button.setText("Sync")
+            self.is_syncing = False
+            self.log_console_message.emit("Sync stopped.")
+        
+        self.sync_window.show()
+        self.sync_window.raise_()
+        self.sync_window.activateWindow()
 
     def on_version_check_ready(self, latest_version: str):
         """Slot to handle version check completion"""
@@ -593,6 +705,214 @@ class DebugConsoleWindow(QMainWindow):
         
         self.debug_text_area.append("\n" + "=" * 80 + "\n")
         self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
+
+
+class SyncWindow(QMainWindow):
+    """A window to display synchronized room information."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Sync - Room Status")
+        self.setGeometry(300, 100, 350, 650)
+        
+        style = {
+            "styles": {
+                "QMainWindow": {
+                    "background-color": COLORS['background']
+                },
+                ".room-widget": {
+                    "background-color": COLORS['surface_light'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px"
+                },
+                "QLabel": {
+                    "color": COLORS['text'],
+                    "background-color": "transparent",
+                    "border": "none"
+                },
+                ".room-image": {
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px",
+                    "background-color": COLORS['surface']
+                }
+            }
+        }
+        
+        # Apply styles
+        self.setStyleSheet(convert_style_to_qss(style))
+
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, parent.persistent_window)
+        
+        # Create central widget and layout
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+        
+        # Create vertical layout for all room widgets
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+        
+        # Create 5 room widgets
+        self.room_widgets = []
+        for i in range(5):
+            room_widget = self._create_room_widget(i + 1)
+            self.room_widgets.append(room_widget)
+            main_layout.addWidget(room_widget)
+        
+        # Add stretch at the bottom to keep widgets at top
+        main_layout.addStretch()
+    
+    def _create_room_widget(self, room_number):
+        """Create a single room widget with room name, players, and image."""
+        widget = QWidget()
+        widget.setObjectName("room-widget")
+        widget.setProperty("class", "room-widget")
+        widget.setMinimumHeight(140)
+        widget.setMaximumHeight(140)
+        
+        # Create layout for this room widget
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(5)
+        
+        # Room name
+        room_name_label = QLabel(f"Room Name {room_number}")
+        room_name_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        layout.addWidget(room_name_label)
+        
+        # Players list
+        players_label = QLabel("Players: None")
+        players_label.setFont(QFont("Segoe UI", 8))
+        players_label.setWordWrap(True)
+        layout.addWidget(players_label)
+        
+        # Image area
+        image_label = QLabel("No Image")
+        image_label.setProperty("class", "room-image")
+        image_label.setAlignment(Qt.AlignCenter)
+        image_label.setMinimumHeight(70)
+        image_label.setMaximumHeight(70)
+        image_label.setScaledContents(False)
+        layout.addWidget(image_label)
+        
+        # Store references for later updates
+        widget.room_name_label = room_name_label
+        widget.players_label = players_label
+        widget.image_label = image_label
+        
+        return widget
+    
+    def update_room_widget(self, index, room_name, players_list, image_data=None):
+        """Update a specific room widget with new data."""
+        if 0 <= index < len(self.room_widgets):
+            widget = self.room_widgets[index]
+            widget.room_name_label.setText(room_name)
+            
+            # Display list of players or "None" if empty
+            if players_list:
+                players_text = f"Players: {', '.join(players_list)}"
+            else:
+                players_text = "Players: None"
+            widget.players_label.setText(players_text)
+            
+            if image_data:
+                pixmap = QPixmap()
+                pixmap.loadFromData(image_data)
+                scaled_pixmap = pixmap.scaled(
+                    widget.image_label.width(),
+                    widget.image_label.height(),
+                    Qt.KeepAspectRatioByExpanding,
+                    Qt.SmoothTransformation
+                )
+                widget.image_label.setPixmap(scaled_pixmap)
+            else:
+                widget.image_label.setText("No Image")
+    
+    def add_player(self, username: str):
+        """Add a player to tracking."""
+        print(f"[WS] Add player: {username}")
+        if not hasattr(self, 'players'):
+            self.players = {}
+        
+        if username not in self.players:
+            self.players[username] = {"current_room": None}
+            self._update_display()
+    
+    def remove_player(self, username: str):
+        """Remove a player from tracking."""
+        print(f"[WS] Remove player: {username}")
+        if hasattr(self, 'players') and username in self.players:
+            del self.players[username]
+            self._update_display()
+    
+    def change_player_room(self, username: str, room_name: str):
+        """Change a player's current room."""
+        print(f"[WS] Change player room: {username} -> {room_name}")
+        if not hasattr(self, 'players'):
+            self.players = {}
+        
+        if username not in self.players:
+            self.players[username] = {}
+        
+        self.players[username]["current_room"] = room_name
+        self._update_display()
+    
+    def new_room_encounter(self, room_name: str):
+        """Add a new room encounter."""
+        from src.api.images import download_image
+        from src.api.scanner import _get_room_info
+        print(f"[WS] New room encounter: {room_name}")
+        if not hasattr(self, 'encountered_rooms'):
+            self.encountered_rooms = []
+
+        if not hasattr(self, 'image_map'):
+            self.image_map = {}
+        
+        if room_name not in self.encountered_rooms:
+            self.encountered_rooms.insert(0, room_name)  # Add to front
+            # Get room info and download first image
+            room_info = _get_room_info(room_name)
+            if room_info and room_info.picture_urls:
+                image_data = download_image(room_info.picture_urls[0])
+                self.image_map[room_name] = image_data
+            else:
+                self.image_map[room_name] = None
+            if len(self.encountered_rooms) > 5:
+                self.encountered_rooms = self.encountered_rooms[:5]  # Keep only 5 most recent
+            self._update_display()
+    
+    def _update_display(self):
+        """Update the display with current room and player data."""
+        print("[WS] Updating display")
+        if not hasattr(self, 'encountered_rooms'):
+            self.encountered_rooms = []
+        if not hasattr(self, 'players'):
+            self.players = {}
+        
+        # Collect player names per room
+        room_players = {}
+        for username, data in self.players.items():
+            current_room = data.get("current_room")
+            if current_room:
+                if current_room not in room_players:
+                    room_players[current_room] = []
+                room_players[current_room].append(username)
+        
+        # Update widgets with the 5 most recent rooms
+        for i in range(5):
+            if i < len(self.encountered_rooms):
+                room_name = self.encountered_rooms[i]
+                players_list = room_players.get(room_name, [])
+                image_data = self.image_map.get(room_name)
+                self.update_room_widget(i, room_name, players_list, image_data)
+            else:
+                self.update_room_widget(i, f"Room {i + 1}", [])
+    
+    def clear_all(self):
+        """Clear all players and rooms."""
+        print("[WS] Clearing all sync data")
+        self.players = {}
+        self.encountered_rooms = []
+        self._update_display()
 
 
 class BugReportWindow(QMainWindow):

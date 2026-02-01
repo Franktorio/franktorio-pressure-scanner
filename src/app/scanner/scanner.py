@@ -9,6 +9,7 @@ import threading
 
 from config.vars import session_config
 from src.api.scanner import request_session, end_session, room_encountered, RoomInfo, check_scanner_version
+from src.api.websocket import report_encountered_room, get_active_websocket
 from src.app.scanner.stalker import Stalker
 from src.app.scanner.parser import parse_log_lines
 from src.app.scanner.log_finder import get_latest_log_file_path
@@ -101,6 +102,7 @@ class Scanner:
         """
         Check parsed rooms against the latest rooms list to prevent duplicates.
         Requests a session if there isn't one already.
+        Also reports rooms via websocket if connected.
         
         Args:
             parsed_rooms (list[str]): List of newly parsed room names.
@@ -135,7 +137,15 @@ class Scanner:
                 self._log_console_message(f"Encountered new room: {room}.")
                 self._log_debug_message(f"API call: room_encountered (new room: {room}) with logging=True")
                 _, latest_room = await room_encountered(room_name=room, log_event=True)
-        
+
+            websocket = get_active_websocket()
+            if websocket:
+                try:
+                    self._log_debug_message(f"Websocket: Reporting room {room}")
+                    await report_encountered_room(websocket, room)
+                except Exception as e:
+                    self._log_debug_message(f"Websocket error reporting room: {e}")
+    
         return latest_room
     
     def _reset_scanner_visuals(self):
