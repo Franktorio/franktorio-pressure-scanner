@@ -959,7 +959,7 @@ class SyncWindow(QMainWindow):
             if current_room:
                 if current_room not in room_players:
                     room_players[current_room] = []
-                room_players[current_room].append(username)
+                room_players[current_room].append(f"[ {username} ]")
         
         # Update widgets with the 6 most recent rooms
         for i in range(6):
