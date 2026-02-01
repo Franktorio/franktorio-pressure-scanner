@@ -273,7 +273,8 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             self.ws_add_player,
             self.ws_remove_player,
             self.ws_change_player_room,
-            self.ws_new_room_encounter
+            self.ws_new_room_encounter,
+            self.debug_console_window.debug_console_message
         )
         
         def run_websocket():
@@ -285,7 +286,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             try:
                 self.websocket_loop.run_until_complete(websocket_loop(username, socket_name, current_room))
             except Exception as e:
-                print(f"Websocket error: {e}")
+                self.debug_console_window.debug_console_message.emit(f"[WS] Websocket thread error: {e}")
             finally:
                 self.websocket_loop.close()
         
@@ -862,20 +863,24 @@ class SyncWindow(QMainWindow):
             if image_data:
                 pixmap = QPixmap()
                 pixmap.loadFromData(image_data)
-                # Use fixed size for scaling to prevent widget growth
+                # Scale to fill width and crop vertically
                 scaled_pixmap = pixmap.scaled(
                     300,
                     70,
-                    Qt.KeepAspectRatio,
+                    Qt.KeepAspectRatioByExpanding,
                     Qt.SmoothTransformation
                 )
+                # Crop the image if it's taller than needed
+                if scaled_pixmap.height() > 70:
+                    # Center crop vertically
+                    y_offset = (scaled_pixmap.height() - 70) // 2
+                    scaled_pixmap = scaled_pixmap.copy(0, y_offset, 300, 70)
                 widget.image_label.setPixmap(scaled_pixmap)
             else:
                 widget.image_label.setText("No Image")
     
     def add_player(self, username: str):
         """Add a player to tracking."""
-        print(f"[WS] Add player: {username}")
         if not hasattr(self, 'players'):
             self.players = {}
         
@@ -885,14 +890,12 @@ class SyncWindow(QMainWindow):
     
     def remove_player(self, username: str):
         """Remove a player from tracking."""
-        print(f"[WS] Remove player: {username}")
         if hasattr(self, 'players') and username in self.players:
             del self.players[username]
             self._update_display()
     
     def change_player_room(self, username: str, room_name: str):
         """Change a player's current room."""
-        print(f"[WS] Change player room: {username} -> {room_name}")
         if not hasattr(self, 'players'):
             self.players = {}
         
@@ -906,7 +909,6 @@ class SyncWindow(QMainWindow):
         """Add a new room encounter."""
         from src.api.images import download_image
         from src.api.scanner import _get_room_info
-        print(f"[WS] New room encounter: {room_name}")
         if not hasattr(self, 'encountered_rooms'):
             self.encountered_rooms = []
 
@@ -934,7 +936,6 @@ class SyncWindow(QMainWindow):
     
     def _update_display(self):
         """Update the display with current room and player data."""
-        print("[WS] Updating display")
         if not hasattr(self, 'encountered_rooms'):
             self.encountered_rooms = []
         if not hasattr(self, 'players'):
@@ -944,6 +945,7 @@ class SyncWindow(QMainWindow):
         if hasattr(self, 'player_list_widget'):
             if self.players:
                 player_names = sorted(list(self.players.keys()))
+                player_names = [f"[ {name} ]" for name in player_names]
                 players_text = ", ".join(player_names)
             else:
                 players_text = ""
@@ -972,7 +974,6 @@ class SyncWindow(QMainWindow):
     
     def clear_all(self):
         """Clear all players and rooms."""
-        print("[WS] Clearing all sync data")
         self.players = {}
         self.encountered_rooms = []
         self._update_display()
