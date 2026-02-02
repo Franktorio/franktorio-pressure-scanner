@@ -14,6 +14,7 @@ _gui_remove_player_signal = None
 _gui_change_player_room_signal = None
 _gui_new_room_encounter_signal = None
 _gui_debug_log_signal = None
+_gui_connection_closed_signal = None
 
 # Websocket connection reference (for sending from scanner)
 _active_websocket = None
@@ -75,23 +76,18 @@ async def send_ping(websocket: websockets.WebSocketClientProtocol) -> bool:
     return await _send_json_via_websocket(websocket, data)
 
 
-# GUI Signal references (set by main window)
-_gui_add_player_signal = None
-_gui_remove_player_signal = None
-_gui_change_player_room_signal = None
-_gui_new_room_encounter_signal = None
-
 # Websocket connection reference (for sending from scanner)
 _active_websocket = None
 
-def set_gui_signals(add_player_signal, remove_player_signal, change_player_room_signal, new_room_encounter_signal, debug_log_signal=None):
+def set_gui_signals(add_player_signal, remove_player_signal, change_player_room_signal, new_room_encounter_signal, debug_log_signal=None, connection_closed_signal=None):
     """Set the GUI signals for websocket events."""
-    global _gui_add_player_signal, _gui_remove_player_signal, _gui_change_player_room_signal, _gui_new_room_encounter_signal, _gui_debug_log_signal
+    global _gui_add_player_signal, _gui_remove_player_signal, _gui_change_player_room_signal, _gui_new_room_encounter_signal, _gui_debug_log_signal, _gui_connection_closed_signal
     _gui_add_player_signal = add_player_signal
     _gui_remove_player_signal = remove_player_signal
     _gui_change_player_room_signal = change_player_room_signal
     _gui_new_room_encounter_signal = new_room_encounter_signal
     _gui_debug_log_signal = debug_log_signal
+    _gui_connection_closed_signal = connection_closed_signal
 
 def get_active_websocket() -> websockets.WebSocketClientProtocol | None:
     """Get the currently active websocket connection, if any."""
@@ -206,3 +202,6 @@ async def websocket_loop(username: str, socket_name: str, current_room: str) -> 
         _active_websocket = None
         await websocket.close()
         _log_debug("Websocket connection closed")
+        # Emit connection closed signal to GUI
+        if _gui_connection_closed_signal:
+            _gui_connection_closed_signal.emit()

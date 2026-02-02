@@ -137,6 +137,10 @@ def _get_room_info(room_name: str) -> RoomInfo | None:
     for attempt in range(max_retries):
         try:
             session_id, password = session_config.get_session()
+
+            if not session_id or not password:
+                session_id = "unauthenticated"
+                password = "unauthenticated"
             
             resp = requests.post(
                 f"{API_BASE_URL}/get_roominfo",

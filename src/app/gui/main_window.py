@@ -10,16 +10,18 @@ import asyncio
 import os
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QShortcut, QTextEdit, QPushButton, QLabel,
-    QWidget, QVBoxLayout, QHBoxLayout, QInputDialog
+    QApplication, QMainWindow, QFileDialog, QShortcut, QInputDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QPixmap, QKeySequence, QMovie, QFont
+from PyQt5.QtGui import QPixmap, QKeySequence, QMovie
 
 from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION, LOADING_GIF_PATH
 from .colors import COLORS, convert_style_to_qss
 from .window_controls import WindowControlsMixin
 from .widgets import WidgetSetupMixin
+from .debug_console import DebugConsoleWindow
+from .sync_window import SyncWindow
+from .bug_report import BugReportWindow
 
 from src.app.scanner.scanner import Scanner
 from src.api.scanner import RoomInfo
@@ -44,6 +46,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     ws_remove_player = pyqtSignal(str)  # Signal to remove player from sync window
     ws_change_player_room = pyqtSignal(str, str)  # Signal to change player room (username, room_name)
     ws_new_room_encounter = pyqtSignal(str)  # Signal for new room encounter (room_name)
+    ws_connection_closed = pyqtSignal()  # Signal when websocket connection closes
     
     def __init__(self):
         super().__init__()
@@ -246,6 +249,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.ws_remove_player.connect(self.sync_window.remove_player)
         self.ws_change_player_room.connect(self.sync_window.change_player_room)
         self.ws_new_room_encounter.connect(self.sync_window.new_room_encounter)
+        self.ws_connection_closed.connect(self.on_websocket_connection_closed)
 
         # Emit empty log message
         self.log_console_message.emit(f"")
@@ -274,7 +278,8 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             self.ws_remove_player,
             self.ws_change_player_room,
             self.ws_new_room_encounter,
-            self.debug_console_window.debug_console_message
+            self.debug_console_window.debug_console_message,
+            self.ws_connection_closed
         )
         
         def run_websocket():
@@ -294,14 +299,24 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.websocket_thread.start()
     
     def _stop_websocket_sync(self):
-        """Stop websocket connection"""
+        """Stop websocket connection and reset sync window"""
         if self.websocket_loop:
             try:
                 self.websocket_loop.call_soon_threadsafe(self.websocket_loop.stop)
             except:
                 pass
         self.websocket_thread = None
+        # Reset sync window to default state
         self.sync_window.clear_all()
+    
+    def on_websocket_connection_closed(self):
+        """Handle websocket connection closure and reset sync state"""
+        if self.is_syncing:
+            self.is_syncing = False
+            self.sync_button.setText("Sync")
+            self.log_console_message.emit("Connection closed. Sync stopped.")
+            # Reset sync window to default state
+            self.sync_window.clear_all()
     
     def closeEvent(self, event):
         """Save window geometry before closing"""
@@ -590,461 +605,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             else:
                 self.log_console_message.emit("Log directory selection cancelled")
 
-class DebugConsoleWindow(QMainWindow):
-    """A separate window for detailed debug console output."""
-    debug_console_message = pyqtSignal(str)  # Signal to log messages to debug console
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"Debug Console v{VERSION}")
-        self.setGeometry(150, 150, 800, 600)
-        
-        
-        # Apply main window background color
-        main_style = {
-            "styles": {
-                "QMainWindow": {
-                    "background-color": COLORS['background']
-                }
-            }
-        }
-        self.setStyleSheet(convert_style_to_qss(main_style))
-        
-        # Setup text area with styling to match main console
-        self.debug_text_area = QTextEdit(self)
-        self.debug_text_area.setReadOnly(True)
-        
-        # Apply console text area styling
-        text_area_style = {
-            "styles": {
-                "QTextEdit": {
-                    "background-color": COLORS['surface'],
-                    "color": COLORS['text'],
-                    "padding": "10px",
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "10px",
-                    "font-family": "Consolas, monospace",
-                    "font-size": "10pt"
-                },
-                "QPushButton": {
-                    "background-color": COLORS['button_bg'],
-                    "color": COLORS['button_text_active'],
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "5px",
-                    "padding": "5px"
-                },
-                "QPushButton:hover": {
-                    "background-color": COLORS['button_hover']
-                },
-                "QPushButton:pressed": {
-                    "background-color": COLORS['button_inactive']
-                }
-            }
-        }
-        self.debug_text_area.setStyleSheet(convert_style_to_qss(text_area_style))
-        self.setCentralWidget(self.debug_text_area)
 
-        # Add bug report button
-        self.bug_report_debug_button = QPushButton("Submit Bug Report", self.debug_text_area)
-        self.bug_report_debug_button.setGeometry(10, 10, 140, 30)
-
-        # Move button to bottom-right corner
-        self.bug_report_debug_button.move(self.width() - self.bug_report_debug_button.width() - 10,
-                                    self.height() - self.bug_report_debug_button.height() - 10)
-
-        # Connect signal to slot
-        self.debug_console_message.connect(self.log_debug_message)
-        self.bug_report_debug_button.clicked.connect(self.open_bug_report_window)
-        
-        # Add initial header
-        self.debug_text_area.append("=" * 80)
-        self.debug_text_area.append(f"Franktorio Research Scanner - Debug Console v{VERSION}")
-        self.debug_text_area.append("=" * 80)
-        self.debug_text_area.append("")
-
-    def log_debug_message(self, message: str):
-        """Log a debug message to the debug console."""
-        MAX_CHARS = 50000
-        now = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-        formatted_message = f"{now} {message}"
-        current_text = self.debug_text_area.toPlainText()
-        self.debug_text_area.setText(current_text[-MAX_CHARS:] + formatted_message + "\n")
-        self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
-
-    def open_bug_report_window(self):
-        """Open the bug report window."""
-        # Get parent's bug report window
-        if hasattr(self.parent(), 'bug_report_window'):
-            self.parent().bug_report_window.show()
-    
-    def update_stats(self, stats: dict):
-        """Update and display current debug statistics."""
-        self.debug_text_area.append("\n" + "=" * 80)
-        self.debug_text_area.append(f"Debug Statistics - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.debug_text_area.append("=" * 80)
-        
-        # Scanner stats
-        self.debug_text_area.append("\n[Scanner Statistics]")
-        self.debug_text_area.append(f"  Scanner Iterations:     {stats.get('scanner_iterations', 0)}")
-        self.debug_text_area.append(f"  File Checks:            {stats.get('file_checks', 0)}")
-        self.debug_text_area.append(f"  File Switches:          {stats.get('file_switches', 0)}")
-        self.debug_text_area.append(f"  API Calls:              {stats.get('api_calls', 0)}")
-        self.debug_text_area.append(f"  Session Requests:       {stats.get('session_requests', 0)}")
-        self.debug_text_area.append(f"  Total Rooms Reported:   {stats.get('total_rooms_reported', 0)}")
-        self.debug_text_area.append(f"  Errors Caught:          {stats.get('errors_caught', 0)}")
-        
-        # Stalker stats
-        self.debug_text_area.append("\n[File Monitoring Statistics]")
-        self.debug_text_area.append(f"  Total Reads:            {stats.get('stalker_reads', 0)}")
-        self.debug_text_area.append(f"  Total Lines Read:       {stats.get('stalker_lines_read', 0)}")
-        self.debug_text_area.append(f"  Empty Reads:            {stats.get('stalker_empty_reads', 0)}")
-        
-        # Parser stats
-        self.debug_text_area.append("\n[Parser Statistics]")
-        self.debug_text_area.append(f"  Total Lines Parsed:     {stats.get('total_lines_parsed', 0)}")
-        self.debug_text_area.append(f"  Rooms Found:            {stats.get('rooms_found', 0)}")
-        self.debug_text_area.append(f"  Locations Found:        {stats.get('locations_found', 0)}")
-        self.debug_text_area.append(f"  Disconnects Detected:   {stats.get('disconnects_detected', 0)}")
-        
-        self.debug_text_area.append("\n" + "=" * 80 + "\n")
-        self.debug_text_area.verticalScrollBar().setValue(self.debug_text_area.verticalScrollBar().maximum())
-
-
-class SyncWindow(QMainWindow):
-    """A window to display synchronized room information."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Sync - Room Status")
-        self.setGeometry(300, 100, 350, 780)
-        
-        style = {
-            "styles": {
-                "QMainWindow": {
-                    "background-color": COLORS['background']
-                },
-                ".room-widget": {
-                    "background-color": COLORS['surface_light'],
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "10px"
-                },
-                ".player-list-widget": {
-                    "background-color": COLORS['surface_light'],
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "10px",
-                    "padding": "8px"
-                },
-                "QLabel": {
-                    "color": COLORS['text'],
-                    "background-color": "transparent",
-                    "border": "none"
-                },
-                ".room-image": {
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "5px",
-                    "background-color": COLORS['surface']
-                }
-            }
-        }
-        
-        # Apply styles
-        self.setStyleSheet(convert_style_to_qss(style))
-
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-        
-        # Create central widget and layout
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-        
-        # Create vertical layout for all room widgets
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
-        
-        # Create player list widget at the top
-        self.player_list_widget = self._create_player_list_widget()
-        main_layout.addWidget(self.player_list_widget)
-        
-        # Create 6 room widgets
-        self.room_widgets = []
-        for i in range(6):
-            room_widget = self._create_room_widget(i + 1)
-            self.room_widgets.append(room_widget)
-            main_layout.addWidget(room_widget)
-        
-        # Add stretch at the bottom to keep widgets at top
-        main_layout.addStretch()
-    
-    def _create_player_list_widget(self):
-        """Create a widget to display all players currently in the socket."""
-        widget = QWidget()
-        widget.setObjectName("player-list-widget")
-        widget.setProperty("class", "player-list-widget")
-        widget.setMinimumHeight(50)
-        widget.setMaximumHeight(80)
-        
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(3)
-        
-        # Title
-        title_label = QLabel("Connected Players")
-        title_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        layout.addWidget(title_label)
-        
-        # Players list
-        players_label = QLabel("")
-        players_label.setFont(QFont("Segoe UI", 8))
-        players_label.setWordWrap(True)
-        layout.addWidget(players_label)
-        
-        widget.players_label = players_label
-        return widget
-    
-    def _create_room_widget(self, room_number):
-        """Create a single room widget with room name, players, and image."""
-        widget = QWidget()
-        widget.setObjectName("room-widget")
-        widget.setProperty("class", "room-widget")
-        widget.setMinimumHeight(140)
-        widget.setMaximumHeight(140)
-        
-        # Create layout for this room widget
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(5)
-        
-        # Room name
-        room_name_label = QLabel(f"Room Name {room_number}")
-        room_name_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        layout.addWidget(room_name_label)
-        
-        # Players title label (bold)
-        players_title_label = QLabel("<b>Players:</b>")
-        players_title_label.setFont(QFont("Segoe UI", 8))
-        layout.addWidget(players_title_label)
-        
-        # Players list
-        players_label = QLabel("")
-        players_label.setFont(QFont("Segoe UI", 8))
-        players_label.setWordWrap(True)
-        layout.addWidget(players_label)
-        
-        # Image area
-        image_label = QLabel("No Image")
-        image_label.setProperty("class", "room-image")
-        image_label.setAlignment(Qt.AlignCenter)
-        image_label.setMinimumHeight(70)
-        image_label.setMaximumHeight(70)
-        image_label.setMinimumWidth(300)
-        image_label.setMaximumWidth(300)
-        image_label.setScaledContents(False)
-        image_label.setSizePolicy(image_label.sizePolicy().horizontalPolicy(), image_label.sizePolicy().verticalPolicy())
-        layout.addWidget(image_label)
-        
-        # Store references for later updates
-        widget.room_name_label = room_name_label
-        widget.players_label = players_label
-        widget.image_label = image_label
-        
-        return widget
-    
-    def update_room_widget(self, index, room_name, players_list, image_data=None):
-        """Update a specific room widget with new data."""
-        if 0 <= index < len(self.room_widgets):
-            widget = self.room_widgets[index]
-            widget.room_name_label.setText(room_name)
-            
-            # Display list of players or empty if none
-            if players_list:
-                players_text = ", ".join(players_list)
-            else:
-                players_text = ""
-            widget.players_label.setText(players_text)
-            
-            if image_data:
-                pixmap = QPixmap()
-                pixmap.loadFromData(image_data)
-                # Scale to fill width and crop vertically
-                scaled_pixmap = pixmap.scaled(
-                    300,
-                    70,
-                    Qt.KeepAspectRatioByExpanding,
-                    Qt.SmoothTransformation
-                )
-                # Crop the image if it's taller than needed
-                if scaled_pixmap.height() > 70:
-                    # Center crop vertically
-                    y_offset = (scaled_pixmap.height() - 70) // 2
-                    scaled_pixmap = scaled_pixmap.copy(0, y_offset, 300, 70)
-                widget.image_label.setPixmap(scaled_pixmap)
-            else:
-                widget.image_label.setText("No Image")
-    
-    def add_player(self, username: str):
-        """Add a player to tracking."""
-        if not hasattr(self, 'players'):
-            self.players = {}
-        
-        if username not in self.players:
-            self.players[username] = {"current_room": None}
-            self._update_display()
-    
-    def remove_player(self, username: str):
-        """Remove a player from tracking."""
-        if hasattr(self, 'players') and username in self.players:
-            del self.players[username]
-            self._update_display()
-    
-    def change_player_room(self, username: str, room_name: str):
-        """Change a player's current room."""
-        if not hasattr(self, 'players'):
-            self.players = {}
-        
-        if username not in self.players:
-            self.players[username] = {}
-        
-        self.players[username]["current_room"] = room_name
-        self._update_display()
-    
-    def new_room_encounter(self, room_name: str):
-        """Add a new room encounter."""
-        from src.api.images import download_image
-        from src.api.scanner import _get_room_info
-        if not hasattr(self, 'encountered_rooms'):
-            self.encountered_rooms = []
-
-        if not hasattr(self, 'image_map'):
-            self.image_map = {}
-        
-        if room_name not in self.encountered_rooms:
-            self.encountered_rooms.insert(0, room_name)  # Add to front
-            if len(self.encountered_rooms) > 6:
-                self.encountered_rooms = self.encountered_rooms[:6]  # Keep only 6 most recent
-            
-            self._update_display()  # Update display before downloading
-            QApplication.processEvents()  # Update UI
-            
-            # Get room info and download first image
-            room_info = _get_room_info(room_name)
-            if room_info and room_info.picture_urls:
-                image_data = download_image(room_info.picture_urls[0])
-                self.image_map[room_name] = image_data
-            else:
-                self.image_map[room_name] = None
-            
-            self._update_display()  # Update again after image download
-            QApplication.processEvents()  # Update UI
-    
-    def _update_display(self):
-        """Update the display with current room and player data."""
-        if not hasattr(self, 'encountered_rooms'):
-            self.encountered_rooms = []
-        if not hasattr(self, 'players'):
-            self.players = {}
-        
-        # Update player list widget
-        if hasattr(self, 'player_list_widget'):
-            if self.players:
-                player_names = sorted(list(self.players.keys()))
-                player_names = [f"[ {name} ]" for name in player_names]
-                players_text = ", ".join(player_names)
-            else:
-                players_text = ""
-            self.player_list_widget.players_label.setText(players_text)
-            QApplication.processEvents()  # Update UI
-        
-        # Collect player names per room
-        room_players = {}
-        for username, data in self.players.items():
-            current_room = data.get("current_room")
-            if current_room:
-                if current_room not in room_players:
-                    room_players[current_room] = []
-                room_players[current_room].append(f"[ {username} ]")
-        
-        # Update widgets with the 6 most recent rooms
-        for i in range(6):
-            QApplication.processEvents()  # Update UI during iteration
-            if i < len(self.encountered_rooms):
-                room_name = self.encountered_rooms[i]
-                players_list = room_players.get(room_name, [])
-                image_data = self.image_map.get(room_name) if hasattr(self, 'image_map') else None
-                self.update_room_widget(i, room_name, players_list, image_data)
-            else:
-                self.update_room_widget(i, f"Room {i + 1}", [])
-    
-    def clear_all(self):
-        """Clear all players and rooms."""
-        self.players = {}
-        self.encountered_rooms = []
-        self._update_display()
-
-
-class BugReportWindow(QMainWindow):
-    """A window to submit bug reports."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Submit Bug Report")
-        self.setGeometry(200, 200, 600, 400)
-        
-        style = {
-            "styles": {
-                "QMainWindow": {
-                    "background-color": COLORS['background']
-                },
-                "QTextEdit": {
-                    "background-color": COLORS['surface'],
-                    "color": COLORS['text'],
-                    "padding": "10px",
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "10px",
-                    "font-family": "Consolas, monospace",
-                    "font-size": "10pt"
-                },
-                "QLabel": {
-                    "color": COLORS['text'],
-                    "background-color": COLORS['surface'],
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "5px"
-                },
-                "QPushButton": {
-                    "background-color": COLORS['button_bg'],
-                    "color": COLORS['button_text_active'],
-                    "border": f"1px solid {COLORS['border']}",
-                    "border-radius": "5px",
-                    "padding": "5px"
-                },
-                "QPushButton:hover": {
-                    "background-color": COLORS['button_hover']
-                }
-                
-            }
-        }
-
-        # Apply styles
-        self.setStyleSheet(convert_style_to_qss(style))
-
-
-        self.title_label = QLabel("FEATURE NOT IMPLEMENTED; DOES NOTHING", self)
-        self.title_label.setGeometry(20, 20, 560, 30)
-
-        self.bug_report_text_area = QTextEdit(self)
-        self.bug_report_text_area.setGeometry(20, 60, 560, 250)
-
-        self.submit_button = QPushButton("Submit Report", self)
-        self.submit_button.setGeometry(240, 330, 120, 40)
-    
-    def submit_report(self):
-        """Submit the bug report (functionality to be implemented)."""
-        report_text = self.bug_report_text_area.toPlainText()
-
-        # Get both the consoles' text for context
-        main_console_text = ""
-        debug_console_text = ""
-
-        if hasattr(self.parent(), 'console_text_area'):
-            main_console_text = self.parent().console_text_area.toPlainText()
-        
-        if hasattr(self.parent(), 'debug_console_window'):
-            debug_console_text = self.parent().debug_console_window.debug_text_area.toPlainText()
 
         
