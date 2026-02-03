@@ -24,7 +24,6 @@ class WindowControlsMixin:
     def mousePressEvent(self, event):
         """Handle mouse press for dragging and resizing"""
         if event.button() == Qt.LeftButton:
-            # Check if clicking on title bar for dragging
             if self.title_bar.geometry().contains(event.pos()):
                 self.dragging = True
                 self.drag_position = event.globalPos() - self.frameGeometry().topLeft()

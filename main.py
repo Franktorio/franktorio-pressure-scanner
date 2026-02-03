@@ -3,7 +3,6 @@
 # December 2025
 
 import sys
-import os
 from PyQt5.QtCore import QSharedMemory, Qt
 from src.app.gui import MainWindow
 from PyQt5.QtWidgets import QApplication
@@ -39,6 +38,7 @@ shared_memory.attach()
 
 
 window = MainWindow()
+
 window.show()
 
 

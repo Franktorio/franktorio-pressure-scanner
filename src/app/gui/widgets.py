@@ -4,7 +4,7 @@
 
 import threading
 
-from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QTextEdit
+from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QTextEdit, QMenu, QSlider, QWidgetAction
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QApplication
@@ -34,12 +34,14 @@ class ElidedLabel(QLabel):
         metrics = QFontMetrics(self.font())
         elided = metrics.elidedText(self._full_text, Qt.ElideRight, self.width())
         super().setText(elided)
-        self.setToolTip(self._full_text)  # Show full text on hover
+        self.setToolTip(self._full_text)
     
     def resizeEvent(self, event):
         """Re-elide text when widget is resized"""
         super().resizeEvent(event)
         self._updateText()
+
+        
 
 
 class WidgetSetupMixin:
@@ -77,7 +79,6 @@ class WidgetSetupMixin:
         button_area_height = widget_height - image_height
         button_size = int(30 * self.dpi_scale)
         
-        # Split bottom area in half - top half for counter and nav buttons, bottom half for toggle button
         half_button_area = button_area_height // 2
         
         # Center navigation buttons and counter vertically in the top half of button area
@@ -212,6 +213,13 @@ class WidgetSetupMixin:
         # Layout console widget elements
         self._layout_console_widget_elements()
     
+    def _show_dropdown_menu(self):
+        """Show the dropdown menu below the menu button"""
+        if hasattr(self, 'menu_button') and hasattr(self, 'dropdown_menu'):
+            # Position menu below the button
+            button_pos = self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft())
+            self.dropdown_menu.exec_(button_pos)
+    
     def setup_title_bar(self):
         """Setup custom title bar with close, minimize, maximize buttons"""
         style = {
@@ -237,6 +245,13 @@ class WidgetSetupMixin:
                 "QPushButton:hover": {
                     "background-color": COLORS['button_hover']
                 },
+                "QPushButton#minimizeButton": {
+                    "background-color": "#000000",
+                    "color": "#ffffff",
+                },
+                "QPushButton#minimizeButton:hover": {
+                    "background-color": "#333333"
+                },
                 "QPushButton#closeButton": {
                     "background-color": "#ff5c5c",
                     "color": "#ffffff",
@@ -260,7 +275,6 @@ class WidgetSetupMixin:
         self.title_bar.setObjectName("titleBar")
         self.title_bar.setMouseTracking(True)
 
-        # Create layout and attach it to the widget
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(15, 0, 5, 0)
         title_layout.setSpacing(10)
@@ -278,12 +292,10 @@ class WidgetSetupMixin:
         self.app_icon_label.setPixmap(scaled_pixmap)
         title_layout.addWidget(self.app_icon_label)
 
-        # Create label
         self.title_label = ElidedLabel(f"Franktorio's Research Scanner", self.title_bar)
         self.title_label.setObjectName("titleBarLabel")
         self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
-        # Create font and adjust letter spacing
         font = QFont("OCR A Extended", int(12 * self.dpi_scale), QFont.Bold)
         font.setLetterSpacing(QFont.AbsoluteSpacing, 1.6 * self.dpi_scale)  # spacing in pixels
 
@@ -291,36 +303,107 @@ class WidgetSetupMixin:
         self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         title_layout.addWidget(self.title_label)
 
-        # Create <> to open detailed console for debugging
+        self.start_scan_button = QPushButton("Start", self.title_bar)
+        self.start_scan_button.setMinimumWidth(int(30 * self.dpi_scale))
+        self.start_scan_button.setMaximumWidth(int(50 * self.dpi_scale))
+        self.start_scan_button.setFixedHeight(int(20 * self.dpi_scale))
+        title_layout.addWidget(self.start_scan_button)
+
+        self.stop_scan_button = QPushButton("Stop", self.title_bar)
+        self.stop_scan_button.setMinimumWidth(int(30 * self.dpi_scale))
+        self.stop_scan_button.setMaximumWidth(int(50 * self.dpi_scale))
+        self.stop_scan_button.setFixedHeight(int(20 * self.dpi_scale))
+        title_layout.addWidget(self.stop_scan_button)
+
         self.debug_console_button = QPushButton("<>", self.title_bar)
         self.debug_console_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
         title_layout.addWidget(self.debug_console_button)
 
-        # Create Start Scan button
-        self.start_scan_button = QPushButton("Start Scan", self.title_bar)
-        self.start_scan_button.setMinimumWidth(int(70 * self.dpi_scale))
-        self.start_scan_button.setFixedHeight(int(20 * self.dpi_scale))
-        title_layout.addWidget(self.start_scan_button)
-
-        # Create Stop Scan button
-        self.stop_scan_button = QPushButton("Stop Scan", self.title_bar)
-        self.stop_scan_button.setMinimumWidth(int(70 * self.dpi_scale))
-        self.stop_scan_button.setFixedHeight(int(20 * self.dpi_scale))
-        title_layout.addWidget(self.stop_scan_button)
-
-        # Create Persistent Window button
-        self.persistent_window_button = QPushButton("Persistent Window: OFF", self.title_bar)
-        self.persistent_window_button.setMinimumWidth(int(140 * self.dpi_scale))
-        self.persistent_window_button.setFixedHeight(int(20 * self.dpi_scale))
-        title_layout.addWidget(self.persistent_window_button)
+        self.menu_button = QPushButton("≡", self.title_bar)
+        self.menu_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
+        title_layout.addWidget(self.menu_button)
         
-        # Create Sync button
-        self.sync_button = QPushButton("Sync", self.title_bar)
-        self.sync_button.setMinimumWidth(int(50 * self.dpi_scale))
-        self.sync_button.setFixedHeight(int(20 * self.dpi_scale))
-        title_layout.addWidget(self.sync_button)
+        self.dropdown_menu = QMenu(self)
         
-        # Create X button on right side
+        # Style the dropdown menu
+        menu_style = f"""
+            QMenu {{
+                background-color: {COLORS['button_bg']};
+                color: {COLORS['button_text_active']};
+                border: 1px solid {COLORS['border']};
+                padding: 5px;
+            }}
+            QMenu::item {{
+                padding: 5px 20px;
+                background-color: transparent;
+            }}
+            QMenu::item:selected {{
+                background-color: {COLORS['button_hover']};
+            }}
+            QSlider::groove:horizontal {{
+                background: {COLORS['surface']};
+                height: 6px;
+                border-radius: 3px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {COLORS['button_text_active']};
+                width: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {COLORS['button_hover']};
+            }}
+        """
+        self.dropdown_menu.setStyleSheet(menu_style)
+        
+        self.sync_action = self.dropdown_menu.addAction("Join Scanning Session")
+        
+        opacity_widget = QWidget()
+        opacity_layout = QVBoxLayout(opacity_widget)
+        opacity_layout.setContentsMargins(10, 5, 10, 5)
+        opacity_layout.setSpacing(5)
+        
+        opacity_label = QLabel("Window Opacity")
+        opacity_label.setStyleSheet(f"color: {COLORS['text']}; font-weight: bold;")
+        opacity_layout.addWidget(opacity_label)
+        
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setMinimum(30)  # 30% minimum opacity
+        self.opacity_slider.setMaximum(100)  # 100% maximum opacity
+        self.opacity_slider.setValue(100)  # Default to 100%
+        self.opacity_slider.setTickPosition(QSlider.TicksBelow)
+        self.opacity_slider.setTickInterval(10)
+        self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        opacity_layout.addWidget(self.opacity_slider)
+        
+        self.opacity_value_label = QLabel("100%")
+        self.opacity_value_label.setStyleSheet(f"color: {COLORS['text']};")
+        self.opacity_value_label.setAlignment(Qt.AlignCenter)
+        opacity_layout.addWidget(self.opacity_value_label)
+        
+        opacity_action = QWidgetAction(self.dropdown_menu)
+        opacity_action.setDefaultWidget(opacity_widget)
+        self.dropdown_menu.addAction(opacity_action)
+        
+        self.dropdown_menu.addSeparator()
+        
+        self.persistent_action = self.dropdown_menu.addAction("Persistent Window: OFF")
+        self.persistent_action.triggered.connect(self.on_persistent_window_button_toggled)
+        
+        self.menu_button.clicked.connect(self._show_dropdown_menu)
+        
+        # Store references for buttons that need updating
+        self.sync_button = None  # Placeholder for compatibility
+        self.persistent_window_button = None
+        self.toggle_overlay_button = None
+        
+        self.minimize_button = QPushButton("-", self.title_bar)
+        self.minimize_button.clicked.connect(self.showMinimized)
+        self.minimize_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.minimize_button.setObjectName("minimizeButton")
+        title_layout.addWidget(self.minimize_button)
+        
         self.close_button = QPushButton("X", self.title_bar)
         self.close_button.clicked.connect(self.close)
         self.close_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
@@ -656,3 +739,12 @@ class WidgetSetupMixin:
     def _exit_button_clicked(self):
         """Handle exit button click"""
         self.close()
+    
+    def _on_opacity_changed(self, value):
+        """Handle opacity slider value change"""
+        from src.app.user_data.appdata import set_value_in_config
+        opacity = value / 100.0
+        self.setWindowOpacity(opacity)
+        self.opacity_value_label.setText(f"{value}%")
+        # Save to config
+        set_value_in_config("main_window_opacity", value)

@@ -1,6 +1,6 @@
 # Franktorio Research Scanner
-# Main Window Builder
-# December 2025
+# Main Window Builder with Overlay/Windowed Mode Support
+# February 2026
 
 import datetime
 from email.mime import application
@@ -12,7 +12,7 @@ import os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QShortcut, QInputDialog
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QPixmap, QKeySequence, QMovie
 
 from config.vars import MIN_WIDTH, MIN_HEIGHT, VERSION, LOADING_GIF_PATH
@@ -52,7 +52,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         super().__init__()
         self.setWindowTitle("Franktorio Research Scanner")
         
-        # Load saved window geometry or use defaults
         saved_geometry = get_value_from_config("window_geometry", None)
         if saved_geometry and isinstance(saved_geometry, dict):
             self.setGeometry(
@@ -73,16 +72,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         }
         qss = convert_style_to_qss(style)
         self.setStyleSheet(qss)
-        self.persistent_window = False
+        
+        self.persistent_window = get_value_from_config("main_window_persistent", False)
 
-        # Remove window frame for custom styling
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.dpi_scale = 1
 
-        # Initialize window controls
         self.init_window_controls()
 
-        # Setup UI components (defined in WidgetSetupMixin)
         self.setup_title_bar()
         self.setup_main_widget()
         self.setup_images_widget()
@@ -90,7 +87,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.setup_server_information_widget()
         self.setup_main_console_widget()
 
-        # Connect signals to slots
         self.server_info_updated.connect(self.on_server_info_updated)
         self.room_info_updated.connect(self.on_room_info_updated)
         self.update_start_scan_button_state.connect(self.on_update_start_scan_button_state)
@@ -98,7 +94,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.log_console_message.connect(self.on_log_console_message)
         self.version_check_ready.connect(self.on_version_check_ready)
         self.debug_console_button.clicked.connect(self.on_debug_console_button_clicked)
-        self.sync_button.clicked.connect(self.on_sync_button_clicked)
 
         # Debug console window
         self.debug_console_window = DebugConsoleWindow(self)
@@ -108,6 +103,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         
         # Sync window
         self.sync_window = SyncWindow(self)
+        self.sync_window.hide()  # Hidden by default until user starts syncing
         
         # Websocket tracking
         self.websocket_thread = None
@@ -119,12 +115,45 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.scanner = Scanner()
         self.setup_scanner()
         self.setup_rotating_images()
+        
+        if hasattr(self, 'sync_action'):
+            self.sync_action.triggered.connect(self.on_sync_button_clicked)
+        if hasattr(self, 'persistent_action'):
+            self.persistent_action.triggered.connect(self.on_persistent_window_button_toggled)
+        
+        saved_opacity = get_value_from_config("main_window_opacity", 100)
+        if hasattr(self, 'opacity_slider'):
+            self.opacity_slider.setValue(saved_opacity)
+            self.setWindowOpacity(saved_opacity / 100.0)
+            if hasattr(self, 'opacity_value_label'):
+                self.opacity_value_label.setText(f"{saved_opacity}%")
+        
+        if self.persistent_window:
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            if hasattr(self, 'persistent_action'):
+                self.persistent_action.setText("Persistent Window: ON")
+            self.show()
             
+    
+    def animated_minimize(self):
+        """Minimize window with fade-out animation"""
+        self.minimize_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.minimize_animation.setDuration(200)
+        self.minimize_animation.setStartValue(1.0)
+        self.minimize_animation.setEndValue(0.0)
+        self.minimize_animation.setEasingCurve(QEasingCurve.InOutQuad)
+        
+        def finish_minimize():
+            self.showMinimized()
+            saved_opacity = get_value_from_config("main_window_opacity", 100)
+            self.setWindowOpacity(saved_opacity / 100.0)
+        
+        self.minimize_animation.finished.connect(finish_minimize)
+        self.minimize_animation.start()
     
     def _get_dpi_scale(self):
         """Calculate DPI scaling factor"""
         try:
-            # Get system DPI
             app = QApplication.instance()
             if app:
                 screen = app.primaryScreen()
@@ -157,9 +186,7 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     def _download_images_thread(self, picture_urls, room_name):
         """Thread worker to download remaining images (after first)"""
         downloaded_images = []
-        # Skip first image since it's already downloaded
         for url in picture_urls[1:]:
-            # Check if we're still on the same room before downloading
             if self.current_room_name != room_name:
                 # Room changed, abort this download
                 return
@@ -172,18 +199,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
     def on_images_loaded(self, image_data_list, picture_urls, room_name):
         """Slot to handle when remaining images have been downloaded"""
         if self.current_room_name != room_name:
-            # Room has changed, ignore these images
             return
         
         self.loaded_images.extend(image_data_list)
         
-        # If user is still viewing a loaded image, update display if loading gif is showing
         if self.current_image_index < len(self.loaded_images):
-            # Stop loading gif if it's showing
             if hasattr(self, 'loading_movie') and self.loading_movie.state() == QMovie.Running:
                 self.loading_movie.stop()
                 self.display_image_label.setMovie(None)
-                # Display the now-loaded image
                 current_image = self.loaded_images[self.current_image_index]
                 if current_image:
                     pixmap = QPixmap()
@@ -196,7 +219,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                     )
                     self.display_image_label.setPixmap(scaled_pixmap)
             
-            # Update counter
             self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
     
     def setup_rotating_images(self):
@@ -223,28 +245,26 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.scanner.set_version_check_ready_signal(self.version_check_ready)
         self.scanner.set_debug_console_message_signal(self.debug_console_window.debug_console_message)
 
-        # Disable stop scan button initially
         self.stop_scan_button.setEnabled(False)
 
-        # Connect start and stop buttons
         self.start_scan_button.clicked.connect(self.scanner.start)
         self.stop_scan_button.clicked.connect(self.scanner.stop)
-        self.persistent_window_button.clicked.connect(self.on_persistent_window_button_toggled)
+        
+        if hasattr(self, 'persistent_action'):
+            self.persistent_action.triggered.connect(self.on_persistent_window_button_toggled)
+        
         self.prev_image_button.clicked.connect(self.on_backward_image_button_clicked)
         self.next_image_button.clicked.connect(self.on_forward_image_button_clicked)
         self.toggle_rotating_images_button.clicked.connect(self.on_toggle_rotating_images_clicked)
         
-        # Connect console button signals
         self.clear_console_button.clicked.connect(self.on_clear_console_clicked)
         self.copy_console_button.clicked.connect(self.on_copy_console_clicked)
         self.set_log_dir_button.clicked.connect(self.on_set_log_dir_clicked)
 
-        # Connect image navigation signals
         self.forward_image_requested.connect(self.on_forward_image_button_clicked)
         self.backward_image_requested.connect(self.on_backward_image_button_clicked)
         self.images_loaded.connect(self.on_images_loaded)
         
-        # Connect websocket signals
         self.ws_add_player.connect(self.sync_window.add_player)
         self.ws_remove_player.connect(self.sync_window.remove_player)
         self.ws_change_player_room.connect(self.sync_window.change_player_room)
@@ -272,7 +292,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         """Start websocket connection in a separate thread"""
         from src.api.websocket import websocket_loop, set_gui_signals
         
-        # Set the GUI signals for the websocket module
         set_gui_signals(
             self.ws_add_player,
             self.ws_remove_player,
@@ -306,21 +325,22 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             except:
                 pass
         self.websocket_thread = None
-        # Reset sync window to default state
         self.sync_window.clear_all()
     
     def on_websocket_connection_closed(self):
         """Handle websocket connection closure and reset sync state"""
         if self.is_syncing:
             self.is_syncing = False
-            self.sync_button.setText("Sync")
+            
+            if hasattr(self, 'sync_action'):
+                self.sync_action.setText("Join Scanning Session")
+            
             self.log_console_message.emit("Connection closed. Sync stopped.")
-            # Reset sync window to default state
             self.sync_window.clear_all()
+            self.sync_window.hide()
     
     def closeEvent(self, event):
         """Save window geometry before closing"""
-        # Stop websocket if running
         if self.is_syncing:
             self._stop_websocket_sync()
         
@@ -344,7 +364,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
     def on_server_info_updated(self, info_dict: dict):
         """Slot to handle server info updates"""
-        # Update server info labels with new information
         country = info_dict.get("country", "N/A")
         region = info_dict.get("region", "N/A")
         city = info_dict.get("city", "N/A")
@@ -376,33 +395,27 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.room_description_label.adjustSize()
         self.room_tags_label.adjustSize()
 
-        # Reset image state
         self.current_image_index = 0
         self.loaded_images = []
         self.total_images_expected = 0
         self.last_image_change_time = datetime.datetime.now().timestamp()
-        self.current_room_name = room_name  # Track current room to prevent race conditions
+        self.current_room_name = room_name
 
-        # Exit early if no images
         if not room_info.picture_urls:
             self.display_image_label.setPixmap(QPixmap())  # Clear image
             self.image_counter_label.setText("0/0")
             return
         
-        # Set total expected images
         self.total_images_expected = len(room_info.picture_urls)
         
-        # Update window
         QApplication.processEvents()
         
-        # Show loading gif while first image downloads
         self._show_loading_gif()
         self.image_counter_label.setText(f"Loading...")
 
         QApplication.processEvents()
         
         
-        # Stop loading gif
         if hasattr(self, 'loading_movie'):
             self.loading_movie.stop()
             self.display_image_label.setMovie(None)
@@ -415,7 +428,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             if image_data:
                 self.loaded_images.append(image_data)
                 if not loaded_first_image:
-                    # Display first image immediately
                     pixmap = QPixmap()
                     pixmap.loadFromData(image_data)
                     scaled_pixmap = pixmap.scaled(
@@ -435,13 +447,10 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         if self.total_images_expected == 0:
             return
         
-        # Calculate next index based on total expected images
         self.current_image_index = (self.current_image_index + 1) % self.total_images_expected
         
-        # Update counter label with total expected images
         self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
         
-        # Check if the image at this index has been loaded yet
         if self.current_image_index < len(self.loaded_images):
             current_image = self.loaded_images[self.current_image_index]
             if current_image:
@@ -463,13 +472,10 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         if self.total_images_expected == 0:
             return
         
-        # Calculate previous index based on total expected images
         self.current_image_index = (self.current_image_index - 1) % self.total_images_expected
         
-        # Update counter label with total expected images
         self.image_counter_label.setText(f"{self.current_image_index + 1}/{self.total_images_expected}")
         
-        # Check if the image at this index has been loaded yet
         if self.current_image_index < len(self.loaded_images):
             current_image = self.loaded_images[self.current_image_index]
             if current_image:
@@ -491,7 +497,12 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         """Slot to handle persistent window button toggled"""
         self.persistent_window = not self.persistent_window
         self.setWindowFlag(Qt.WindowStaysOnTopHint, self.persistent_window)
-        self.persistent_window_button.setText("Persistent Window: ON" if self.persistent_window else "Persistent Window: OFF")
+        
+        if hasattr(self, 'persistent_action'):
+            self.persistent_action.setText("Persistent Window: ON" if self.persistent_window else "Persistent Window: OFF")
+        
+        set_value_in_config("main_window_persistent", self.persistent_window)
+        
         self.show()
     
     def on_toggle_rotating_images_clicked(self):
@@ -511,7 +522,6 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
 
     def on_debug_console_button_clicked(self):
         """Slot to handle debug console button click"""
-        # Update debug stats before showing window
         stats = self.scanner.get_debug_stats()
         self.debug_console_window.update_stats(stats)
         self.debug_console_window.show()
@@ -528,21 +538,27 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             if not ok2 or not socket_name:
                 return
             
-            # Start websocket connection
             self._start_websocket_sync(username, socket_name)
-            self.sync_button.setText("Stop Sync")
+            
+            if hasattr(self, 'sync_action'):
+                self.sync_action.setText("Stop Scanning Session")
+            
             self.is_syncing = True
             self.log_console_message.emit(f"Starting sync with socket '{socket_name}' as '{username}'...")
+            
+            self.sync_window.show()
+            self.sync_window.raise_()
+            self.sync_window.activateWindow()
         else:
-            # Stop websocket connection
             self._stop_websocket_sync()
-            self.sync_button.setText("Sync")
+            
+            if hasattr(self, 'sync_action'):
+                self.sync_action.setText("Join Scanning Session")
+            
             self.is_syncing = False
             self.log_console_message.emit("Sync stopped.")
-        
-        self.sync_window.show()
-        self.sync_window.raise_()
-        self.sync_window.activateWindow()
+            
+            self.sync_window.hide()
 
     def on_version_check_ready(self, latest_version: str):
         """Slot to handle version check completion"""
@@ -604,7 +620,3 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
                 self.set_log_dir_button.setText("Undo Log Dir")
             else:
                 self.log_console_message.emit("Log directory selection cancelled")
-
-
-
-        
