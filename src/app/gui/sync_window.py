@@ -17,6 +17,8 @@ class SyncWindow(QMainWindow):
         self.setWindowTitle("Sync - Room Status")
         self.setGeometry(300, 100, 350, 810)
         
+        self.dpi_scale = parent.dpi_scale if parent and hasattr(parent, 'dpi_scale') else 1.0
+        
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         
         # Variables for window dragging
@@ -38,7 +40,7 @@ class SyncWindow(QMainWindow):
                 },
                 "#syncTitleLabel": {
                     "color": COLORS['text'],
-                    "font-size": "12px",
+                    "font-size": f"{12 * self.dpi_scale}px",
                     "font-weight": "bold"
                 },
                 ".room-widget": {
@@ -66,10 +68,10 @@ class SyncWindow(QMainWindow):
                     "background-color": COLORS['button_bg'],
                     "color": COLORS['button_text_active'],
                     "border": "none",
-                    "font-size": "12px",
-                    "width": "30px",
-                    "height": "20px",
-                    "border-radius": "3px"
+                    "font-size": f"{12 * self.dpi_scale}px",
+                    "width": f"{30 * self.dpi_scale}px",
+                    "height": f"{20 * self.dpi_scale}px",
+                    "border-radius": f"{3 * self.dpi_scale}px"
                 },
                 "QPushButton:hover": {
                     "background-color": COLORS['button_hover']
@@ -91,7 +93,7 @@ class SyncWindow(QMainWindow):
                 "QPushButton#syncMenuButton": {
                     "background-color": COLORS['button_bg'],
                     "color": COLORS['button_text_active'],
-                    "font-size": "14px",
+                    "font-size": f"{14 * self.dpi_scale}px",
                 },
                 "QPushButton#syncMenuButton:hover": {
                     "background-color": COLORS['button_hover']
@@ -158,12 +160,12 @@ class SyncWindow(QMainWindow):
         
         # Title
         title_label = QLabel("Connected Players")
-        title_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        title_label.setFont(QFont("Segoe UI", int(9 * self.dpi_scale), QFont.Bold))
         layout.addWidget(title_label)
         
         # Players list
         players_label = QLabel("")
-        players_label.setFont(QFont("Segoe UI", 8))
+        players_label.setFont(QFont("Segoe UI", int(8 * self.dpi_scale)))
         players_label.setWordWrap(True)
         layout.addWidget(players_label)
         
@@ -183,7 +185,7 @@ class SyncWindow(QMainWindow):
         # Title label
         title_label = QLabel("Sync - Room Status", self.title_bar)
         title_label.setObjectName("syncTitleLabel")
-        title_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        title_label.setFont(QFont("Segoe UI", int(10 * self.dpi_scale), QFont.Bold))
         title_layout.addWidget(title_label)
         
         title_layout.addStretch()
@@ -284,6 +286,67 @@ class SyncWindow(QMainWindow):
         button_pos = self.menu_button.mapToGlobal(self.menu_button.rect().bottomLeft())
         self.dropdown_menu.exec_(button_pos)
     
+    def update_scale(self, new_scale):
+        """Update the dpi_scale and refresh all UI elements"""
+        self.dpi_scale = new_scale
+        
+        if hasattr(self, 'title_bar'):
+            self.title_bar.setFixedHeight(int(30 * self.dpi_scale))
+        
+        if hasattr(self, 'menu_button'):
+            self.menu_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        style = {
+            "styles": {
+                "QMainWindow": {
+                    "background-color": COLORS['background'],
+                    "border": f"1px solid {COLORS['border']}"
+                },
+                "#syncTitleBar": {
+                    "background-color": COLORS['titlebar'],
+                    "border-bottom": f"1px solid {COLORS['border']}"
+                },
+                "#syncTitleLabel": {
+                    "color": COLORS['text'],
+                    "font-size": f"{12 * self.dpi_scale}px",
+                    "font-weight": "bold"
+                },
+                "QPushButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "border": "none",
+                    "font-size": f"{12 * self.dpi_scale}px",
+                    "width": f"{30 * self.dpi_scale}px",
+                    "height": f"{20 * self.dpi_scale}px",
+                    "border-radius": f"{3 * self.dpi_scale}px"
+                },
+                "QPushButton:hover": {
+                    "background-color": COLORS['button_hover']
+                },
+                "QPushButton#syncCloseButton": {
+                    "background-color": "#ff5c5c",
+                    "color": "#ffffff",
+                },
+                "QPushButton#syncCloseButton:hover": {
+                    "background-color": "#ff1e1e"
+                },
+                "QPushButton#syncMinimizeButton": {
+                    "background-color": "#000000",
+                    "color": "#ffffff",
+                },
+                "QPushButton#syncMinimizeButton:hover": {
+                    "background-color": "#333333"
+                },
+                "QPushButton#syncMenuButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "font-size": f"{14 * self.dpi_scale}px",
+                }
+            }
+        }
+        qss = convert_style_to_qss(style)
+        self.setStyleSheet(qss)
+    
     def _on_opacity_changed(self, value):
         """Handle opacity slider value change"""
         from src.app.user_data.appdata import set_value_in_config
@@ -366,17 +429,17 @@ class SyncWindow(QMainWindow):
         
         # Room name
         room_name_label = QLabel(f"Room Name {room_number}")
-        room_name_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        room_name_label.setFont(QFont("Segoe UI", int(10 * self.dpi_scale), QFont.Bold))
         layout.addWidget(room_name_label)
         
         # Players title label (bold)
         players_title_label = QLabel("<b>Players:</b>")
-        players_title_label.setFont(QFont("Segoe UI", 8))
+        players_title_label.setFont(QFont("Segoe UI", int(8 * self.dpi_scale)))
         layout.addWidget(players_title_label)
         
         # Players list
         players_label = QLabel("")
-        players_label.setFont(QFont("Segoe UI", 8))
+        players_label.setFont(QFont("Segoe UI", int(8 * self.dpi_scale)))
         players_label.setWordWrap(True)
         layout.addWidget(players_label)
         

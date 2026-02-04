@@ -132,8 +132,8 @@ class WindowControlsMixin:
         
         geo = self.geometry()
         initial_geo = self.initial_geometry
-        min_width = MIN_WIDTH
-        min_height = MIN_HEIGHT
+        min_width = int(MIN_WIDTH * self.dpi_scale)
+        min_height = int(MIN_HEIGHT * self.dpi_scale)
         max_width = MAX_WIDTH
         max_height = MAX_HEIGHT
         

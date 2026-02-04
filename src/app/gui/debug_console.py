@@ -20,6 +20,8 @@ class DebugConsoleWindow(QMainWindow):
         self.setWindowTitle(f"Debug Console v{VERSION}")
         self.setGeometry(150, 150, 800, 600)
         
+        self.dpi_scale = parent.dpi_scale if parent and hasattr(parent, 'dpi_scale') else 1.0
+        
         
         # Apply main window background color
         main_style = {
@@ -45,7 +47,7 @@ class DebugConsoleWindow(QMainWindow):
                     "border": f"1px solid {COLORS['border']}",
                     "border-radius": "10px",
                     "font-family": "Consolas, monospace",
-                    "font-size": "10pt"
+                    "font-size": f"{10 * self.dpi_scale}pt"
                 },
                 "QPushButton": {
                     "background-color": COLORS['button_bg'],
@@ -78,6 +80,38 @@ class DebugConsoleWindow(QMainWindow):
         self.bug_report_debug_button.clicked.connect(self.open_bug_report_window)
         
         # Add initial header
+    
+    def update_scale(self, new_scale):
+        """Update the dpi_scale and refresh styles"""
+        self.dpi_scale = new_scale
+        
+        text_area_style = {
+            "styles": {
+                "QTextEdit": {
+                    "background-color": COLORS['surface'],
+                    "color": COLORS['text'],
+                    "padding": "10px",
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px",
+                    "font-family": "Consolas, monospace",
+                    "font-size": f"{10 * self.dpi_scale}pt"
+                },
+                "QPushButton": {
+                    "background-color": COLORS['button_bg'],
+                    "color": COLORS['button_text_active'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px",
+                    "padding": "5px"
+                },
+                "QPushButton:hover": {
+                    "background-color": COLORS['button_hover']
+                },
+                "QPushButton:pressed": {
+                    "background-color": COLORS['button_inactive']
+                }
+            }
+        }
+        self.debug_text_area.setStyleSheet(convert_style_to_qss(text_area_style))
         self.debug_text_area.append("=" * 80)
         self.debug_text_area.append(f"Franktorio Research Scanner - Debug Console v{VERSION}")
         self.debug_text_area.append("=" * 80)

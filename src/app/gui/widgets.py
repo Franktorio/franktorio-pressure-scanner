@@ -213,6 +213,93 @@ class WidgetSetupMixin:
         # Layout console widget elements
         self._layout_console_widget_elements()
     
+    def _update_all_fonts(self):
+        """Update all fonts with the current dpi_scale"""
+        if hasattr(self, 'title_label'):
+            font = QFont("OCR A Extended", int(12 * self.dpi_scale), QFont.Bold)
+            font.setLetterSpacing(QFont.AbsoluteSpacing, 1.6 * self.dpi_scale)
+            self.title_label.setFont(font)
+        
+        if hasattr(self, 'title_bar'):
+            self.title_bar.setFixedHeight(int(30 * self.dpi_scale))
+        
+        if hasattr(self, 'app_icon_label'):
+            self.app_icon_label.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+            pixmap = QPixmap(APP_ICON_PATH)
+            scaled_pixmap = pixmap.scaled(
+                self.app_icon_label.width(),
+                self.app_icon_label.height(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.app_icon_label.setPixmap(scaled_pixmap)
+        
+        if hasattr(self, 'start_scan_button'):
+            self.start_scan_button.setMinimumWidth(int(30 * self.dpi_scale))
+            self.start_scan_button.setMaximumWidth(int(50 * self.dpi_scale))
+            self.start_scan_button.setFixedHeight(int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'stop_scan_button'):
+            self.stop_scan_button.setMinimumWidth(int(30 * self.dpi_scale))
+            self.stop_scan_button.setMaximumWidth(int(50 * self.dpi_scale))
+            self.stop_scan_button.setFixedHeight(int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'debug_console_button'):
+            self.debug_console_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'menu_button'):
+            self.menu_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'minimize_button'):
+            self.minimize_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'close_button'):
+            self.close_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        # Image counter font
+        if hasattr(self, 'image_counter_label'):
+            font = QFont("Segoe UI", int(11 * self.dpi_scale))
+            self.image_counter_label.setFont(font)
+        
+        # Toggle rotating images button font
+        if hasattr(self, 'toggle_rotating_images_button'):
+            toggle_font = QFont("Segoe UI", int(9 * self.dpi_scale))
+            self.toggle_rotating_images_button.setFont(toggle_font)
+        
+        # Room info fonts
+        font = QFont("Segoe UI", int(11 * self.dpi_scale))
+        if hasattr(self, 'copy_room_name_button'):
+            self.copy_room_name_button.setFont(font)
+        if hasattr(self, 'room_name_label'):
+            self.room_name_label.setFont(font)
+        if hasattr(self, 'room_type_label'):
+            self.room_type_label.setFont(font)
+        if hasattr(self, 'room_description_label'):
+            self.room_description_label.setFont(font)
+        if hasattr(self, 'room_tags_label'):
+            self.room_tags_label.setFont(font)
+        
+        # Server info fonts
+        if hasattr(self, 'server_info_title'):
+            self.server_info_title.setFont(font)
+        if hasattr(self, 'server_country_label'):
+            self.server_country_label.setFont(font)
+        if hasattr(self, 'server_region_label'):
+            self.server_region_label.setFont(font)
+        if hasattr(self, 'server_city_label'):
+            self.server_city_label.setFont(font)
+        
+        # Console fonts
+        console_font = QFont("Segoe UI", int(10 * self.dpi_scale))
+        if hasattr(self, 'console_text_area'):
+            self.console_text_area.setFont(console_font)
+        if hasattr(self, 'clear_console_button'):
+            self.clear_console_button.setFont(console_font)
+        if hasattr(self, 'copy_console_button'):
+            self.copy_console_button.setFont(console_font)
+        if hasattr(self, 'set_log_dir_button'):
+            self.set_log_dir_button.setFont(console_font)
+    
     def _show_dropdown_menu(self):
         """Show the dropdown menu below the menu button"""
         if hasattr(self, 'menu_button') and hasattr(self, 'dropdown_menu'):
@@ -385,6 +472,34 @@ class WidgetSetupMixin:
         opacity_action = QWidgetAction(self.dropdown_menu)
         opacity_action.setDefaultWidget(opacity_widget)
         self.dropdown_menu.addAction(opacity_action)
+        
+        # App Scale slider
+        scale_widget = QWidget()
+        scale_layout = QVBoxLayout(scale_widget)
+        scale_layout.setContentsMargins(10, 5, 10, 5)
+        scale_layout.setSpacing(5)
+        
+        scale_label = QLabel("App Scale")
+        scale_label.setStyleSheet(f"color: {COLORS['text']}; font-weight: bold;")
+        scale_layout.addWidget(scale_label)
+        
+        self.scale_slider = QSlider(Qt.Horizontal)
+        self.scale_slider.setMinimum(20)  # 0.2 minimum scale (20 = 0.2 * 100)
+        self.scale_slider.setMaximum(200)  # 2.0 maximum scale (200 = 2.0 * 100)
+        self.scale_slider.setValue(100)  # Default to 1.0 (100 = 1.0 * 100)
+        self.scale_slider.setTickPosition(QSlider.TicksBelow)
+        self.scale_slider.setTickInterval(20)
+        self.scale_slider.valueChanged.connect(self._on_scale_changed)
+        scale_layout.addWidget(self.scale_slider)
+        
+        self.scale_value_label = QLabel("1.0x")
+        self.scale_value_label.setStyleSheet(f"color: {COLORS['text']};")
+        self.scale_value_label.setAlignment(Qt.AlignCenter)
+        scale_layout.addWidget(self.scale_value_label)
+        
+        scale_action = QWidgetAction(self.dropdown_menu)
+        scale_action.setDefaultWidget(scale_widget)
+        self.dropdown_menu.addAction(scale_action)
         
         self.dropdown_menu.addSeparator()
         
@@ -748,3 +863,44 @@ class WidgetSetupMixin:
         self.opacity_value_label.setText(f"{value}%")
         # Save to config
         set_value_in_config("main_window_opacity", value)
+    
+    def _on_scale_changed(self, value):
+        """Handle scale slider value change"""
+        from src.app.user_data.appdata import set_value_in_config
+        from config.vars import MIN_WIDTH, MIN_HEIGHT
+        
+        scale = value / 100.0
+        old_scale = self.dpi_scale
+        
+        self.scale_value_label.setText(f"{scale:.1f}x")
+        set_value_in_config("app_scale", value)
+        
+        scale_ratio = scale / old_scale if old_scale > 0 else 1.0
+        
+        current_geo = self.geometry()
+        new_width = int(current_geo.width() * scale_ratio)
+        new_height = int(current_geo.height() * scale_ratio)
+        
+        self.dpi_scale = scale
+        
+        min_width = int(MIN_WIDTH * self.dpi_scale)
+        min_height = int(MIN_HEIGHT * self.dpi_scale)
+        
+        if new_width < min_width:
+            new_width = min_width
+        if new_height < min_height:
+            new_height = min_height
+        
+        self.resize(new_width, new_height)
+        self._update_all_fonts()
+        
+        if hasattr(self, 'sync_window'):
+            self.sync_window.update_scale(scale)
+        
+        if hasattr(self, 'debug_console_window'):
+            self.debug_console_window.update_scale(scale)
+        
+        if hasattr(self, 'bug_report_window'):
+            self.bug_report_window.update_scale(scale)
+        
+        self._update_widget_sizes()

@@ -76,7 +76,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.persistent_window = get_value_from_config("main_window_persistent", False)
 
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.dpi_scale = 1
+        
+        saved_app_scale = get_value_from_config("app_scale", 100)
+        self.dpi_scale = saved_app_scale / 100.0
+        
+        if not (saved_geometry and isinstance(saved_geometry, dict)):
+            scaled_width = int(MIN_WIDTH * self.dpi_scale)
+            scaled_height = int(MIN_HEIGHT * self.dpi_scale)
+            self.setGeometry(100, 100, scaled_width, scaled_height)
 
         self.init_window_controls()
 
@@ -127,6 +134,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
             self.setWindowOpacity(saved_opacity / 100.0)
             if hasattr(self, 'opacity_value_label'):
                 self.opacity_value_label.setText(f"{saved_opacity}%")
+        
+        # Apply saved app scale to UI
+        saved_app_scale = get_value_from_config("app_scale", 100)
+        if hasattr(self, 'scale_slider'):
+            self.scale_slider.setValue(saved_app_scale)
+            if hasattr(self, 'scale_value_label'):
+                scale = saved_app_scale / 100.0
+                self.scale_value_label.setText(f"{scale:.1f}x")
         
         if self.persistent_window:
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
