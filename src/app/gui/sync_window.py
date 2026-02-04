@@ -43,12 +43,12 @@ class SyncWindow(QMainWindow):
                     "font-size": f"{12 * self.dpi_scale}px",
                     "font-weight": "bold"
                 },
-                ".room-widget": {
+                "#roomWidget": {
                     "background-color": COLORS['surface_light'],
                     "border": f"1px solid {COLORS['border']}",
                     "border-radius": "10px"
                 },
-                ".player-list-widget": {
+                "#playerListWidget": {
                     "background-color": COLORS['surface_light'],
                     "border": f"1px solid {COLORS['border']}",
                     "border-radius": "10px",
@@ -59,7 +59,7 @@ class SyncWindow(QMainWindow):
                     "background-color": "transparent",
                     "border": "none"
                 },
-                ".room-image": {
+                "#roomImage": {
                     "border": f"1px solid {COLORS['border']}",
                     "border-radius": "5px",
                     "background-color": COLORS['surface']
@@ -149,8 +149,7 @@ class SyncWindow(QMainWindow):
     def _create_player_list_widget(self):
         """Create a widget to display all players currently in the socket."""
         widget = QWidget()
-        widget.setObjectName("player-list-widget")
-        widget.setProperty("class", "player-list-widget")
+        widget.setObjectName("playerListWidget")
         widget.setMinimumHeight(50)
         widget.setMaximumHeight(80)
         
@@ -311,6 +310,27 @@ class SyncWindow(QMainWindow):
                     "font-size": f"{12 * self.dpi_scale}px",
                     "font-weight": "bold"
                 },
+                "#roomWidget": {
+                    "background-color": COLORS['surface_light'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px"
+                },
+                "#playerListWidget": {
+                    "background-color": COLORS['surface_light'],
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "10px",
+                    "padding": "8px"
+                },
+                "QLabel": {
+                    "color": COLORS['text'],
+                    "background-color": "transparent",
+                    "border": "none"
+                },
+                "#roomImage": {
+                    "border": f"1px solid {COLORS['border']}",
+                    "border-radius": "5px",
+                    "background-color": COLORS['surface']
+                },
                 "QPushButton": {
                     "background-color": COLORS['button_bg'],
                     "color": COLORS['button_text_active'],
@@ -417,8 +437,7 @@ class SyncWindow(QMainWindow):
     def _create_room_widget(self, room_number):
         """Create a single room widget with room name, players, and image."""
         widget = QWidget()
-        widget.setObjectName("room-widget")
-        widget.setProperty("class", "room-widget")
+        widget.setObjectName("roomWidget")
         widget.setMinimumHeight(140)
         widget.setMaximumHeight(140)
         
@@ -445,7 +464,7 @@ class SyncWindow(QMainWindow):
         
         # Image area
         image_label = QLabel("No Image")
-        image_label.setProperty("class", "room-image")
+        image_label.setObjectName("roomImage")
         image_label.setAlignment(Qt.AlignCenter)
         image_label.setMinimumHeight(70)
         image_label.setMaximumHeight(70)
