@@ -2,7 +2,8 @@
 # Window Controls Mixin
 # December 2025
 
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, QEvent
+from PyQt5.QtWidgets import QApplication
 from config.vars import MAX_HEIGHT, MAX_WIDTH, MIN_HEIGHT, MIN_WIDTH, RESIZE_MARGIN
 
 class WindowControlsMixin:
@@ -17,26 +18,33 @@ class WindowControlsMixin:
         self.drag_position = QPoint()
         self.resize_margin = RESIZE_MARGIN
         self.initial_geometry = None  # Store initial geometry for resize
+        self.cursor_override_active = False  # Track if we've set an override cursor
 
         # Enable mouse tracking for cursor updates
         self.setMouseTracking(True)
+    
+    def install_title_bar_event_filter(self):
+        """Install event filter on title bar to handle resize from top"""
+        if hasattr(self, 'title_bar'):
+            self.title_bar.installEventFilter(self)
 
     def mousePressEvent(self, event):
         """Handle mouse press for dragging and resizing"""
         if event.button() == Qt.LeftButton:
-            if self.title_bar.geometry().contains(event.pos()):
-                self.dragging = True
-                self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
-                event.accept()
-                return
-            
-            # Check if clicking on edge for resizing
+            # Check if clicking on edge for resizing first (takes priority)
             edge = self._get_resize_edge(event.pos())
             if edge:
                 self.resizing = True
                 self.resize_edge = edge
                 self.drag_position = event.globalPos()
                 self.initial_geometry = self.geometry()  # Store initial geometry
+                event.accept()
+                return
+            
+            # Then check for title bar dragging
+            if self.title_bar.geometry().contains(event.pos()):
+                self.dragging = True
+                self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
                 event.accept()
                 return
         
@@ -58,15 +66,14 @@ class WindowControlsMixin:
         
         # Update cursor based on position
         if not self.resizing:
-            # Check if mouse is on title bar first
-            if self.title_bar.geometry().contains(event.pos()):
-                self.setCursor(Qt.ArrowCursor)
+            # Check for resize edge first (takes priority)
+            edge = self._get_resize_edge(event.pos())
+            if edge:
+                self._set_resize_cursor(edge)
             else:
-                edge = self._get_resize_edge(event.pos())
-                if edge:
-                    self._set_resize_cursor(edge)
-                else:
-                    self.setCursor(Qt.ArrowCursor)
+                if self.cursor_override_active:
+                    QApplication.restoreOverrideCursor()
+                    self.cursor_override_active = False
         
         super().mouseMoveEvent(event)
 
@@ -77,7 +84,9 @@ class WindowControlsMixin:
             self.resizing = False
             self.resize_edge = None
             self.initial_geometry = None
-            self.setCursor(Qt.ArrowCursor)
+            if self.cursor_override_active:
+                QApplication.restoreOverrideCursor()
+                self.cursor_override_active = False
             event.accept()
         
         super().mouseReleaseEvent(event)
@@ -112,7 +121,7 @@ class WindowControlsMixin:
         return None
 
     def _set_resize_cursor(self, edge):
-        """Set appropriate cursor for resize edge"""
+        """Set appropriate cursor for resize edge using override cursor"""
         cursor_map = {
             'top': Qt.SizeVerCursor,
             'bottom': Qt.SizeVerCursor,
@@ -123,7 +132,13 @@ class WindowControlsMixin:
             'top-right': Qt.SizeBDiagCursor,
             'bottom-left': Qt.SizeBDiagCursor
         }
-        self.setCursor(cursor_map.get(edge, Qt.ArrowCursor))
+        cursor = cursor_map.get(edge, Qt.ArrowCursor)
+        
+        # Use override cursor to ensure it shows even over child widgets
+        if self.cursor_override_active:
+            QApplication.restoreOverrideCursor()
+        QApplication.setOverrideCursor(cursor)
+        self.cursor_override_active = True
 
     def _resize_window(self, global_pos):
         """Resize window so edge moves to where the mouse is"""
@@ -164,3 +179,47 @@ class WindowControlsMixin:
         
         self.setGeometry(geo)
         self._update_widget_sizes()
+    
+    def eventFilter(self, obj, event):
+        """Event filter to handle mouse events on title bar"""
+        if obj == self.title_bar:
+            if event.type() == QEvent.MouseMove:
+                # Convert title bar position to window position
+                window_pos = self.title_bar.mapTo(self, event.pos())
+                edge = self._get_resize_edge(window_pos)
+                
+                if self.resizing and self.resize_edge:
+                    self._resize_window(event.globalPos())
+                    return True
+                elif edge:
+                    self._set_resize_cursor(edge)
+                    return False  # Let title bar handle its own events too
+                else:
+                    if self.cursor_override_active:
+                        QApplication.restoreOverrideCursor()
+                        self.cursor_override_active = False
+                    
+            elif event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.LeftButton:
+                    # Convert title bar position to window position
+                    window_pos = self.title_bar.mapTo(self, event.pos())
+                    edge = self._get_resize_edge(window_pos)
+                    
+                    if edge:
+                        self.resizing = True
+                        self.resize_edge = edge
+                        self.drag_position = event.globalPos()
+                        self.initial_geometry = self.geometry()
+                        return True  # Consume event
+                        
+            elif event.type() == QEvent.MouseButtonRelease:
+                if event.button() == Qt.LeftButton and self.resizing:
+                    self.resizing = False
+                    self.resize_edge = None
+                    self.initial_geometry = None
+                    if self.cursor_override_active:
+                        QApplication.restoreOverrideCursor()
+                        self.cursor_override_active = False
+                    return True
+        
+        return super().eventFilter(obj, event)

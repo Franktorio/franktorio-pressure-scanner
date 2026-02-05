@@ -3,7 +3,7 @@
 # December 2025
 
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication, QMenu, QSlider, QWidgetAction
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QPixmap, QFont
 
 from .colors import COLORS, convert_style_to_qss
@@ -15,9 +15,12 @@ class SyncWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Sync - Room Status")
-        self.setGeometry(300, 100, 350, 810)
         
         self.dpi_scale = parent.dpi_scale if parent and hasattr(parent, 'dpi_scale') else 1.0
+        self.setGeometry(300, 100, int(350 * self.dpi_scale), int(810 * self.dpi_scale))
+        
+        # Enable mouse tracking to handle cursor restoration
+        self.setMouseTracking(True)
         
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         
@@ -120,8 +123,8 @@ class SyncWindow(QMainWindow):
         
         # Create vertical layout for all room widgets
         main_layout = QVBoxLayout(content_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(int(10 * self.dpi_scale), int(10 * self.dpi_scale), int(10 * self.dpi_scale), int(10 * self.dpi_scale))
+        main_layout.setSpacing(int(10 * self.dpi_scale))
         
         self.player_list_widget = self._create_player_list_widget()
         main_layout.addWidget(self.player_list_widget)
@@ -132,7 +135,7 @@ class SyncWindow(QMainWindow):
             self.room_widgets.append(room_widget)
             main_layout.addWidget(room_widget)
         
-        main_layout.addStretch()
+        # Remove addStretch to prevent blank space when scaling down
         
         from src.app.user_data.appdata import get_value_from_config
         saved_opacity = get_value_from_config("sync_window_opacity", 100)
@@ -150,12 +153,12 @@ class SyncWindow(QMainWindow):
         """Create a widget to display all players currently in the socket."""
         widget = QWidget()
         widget.setObjectName("playerListWidget")
-        widget.setMinimumHeight(50)
-        widget.setMaximumHeight(80)
+        widget.setMinimumHeight(int(50 * self.dpi_scale))
+        # Remove maximum height to allow scaling down
         
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(3)
+        layout.setContentsMargins(int(5 * self.dpi_scale), int(5 * self.dpi_scale), int(5 * self.dpi_scale), int(5 * self.dpi_scale))
+        layout.setSpacing(int(3 * self.dpi_scale))
         
         # Title
         title_label = QLabel("Connected Players")
@@ -174,12 +177,12 @@ class SyncWindow(QMainWindow):
     def _setup_title_bar(self):
         """Setup custom title bar for sync window"""
         self.title_bar = QWidget(self)
-        self.title_bar.setFixedHeight(30)
+        self.title_bar.setFixedHeight(int(30 * self.dpi_scale))
         self.title_bar.setObjectName("syncTitleBar")
         
         title_layout = QHBoxLayout(self.title_bar)
-        title_layout.setContentsMargins(10, 0, 5, 0)
-        title_layout.setSpacing(10)
+        title_layout.setContentsMargins(int(10 * self.dpi_scale), 0, int(5 * self.dpi_scale), 0)
+        title_layout.setSpacing(int(10 * self.dpi_scale))
         
         # Title label
         title_label = QLabel("Sync - Room Status", self.title_bar)
@@ -191,25 +194,25 @@ class SyncWindow(QMainWindow):
         
         self.menu_button = QPushButton("≡", self.title_bar)
         self.menu_button.setObjectName("syncMenuButton")
-        self.menu_button.setFixedSize(25, 20)
+        self.menu_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
         self.menu_button.clicked.connect(self._show_dropdown_menu)
         title_layout.addWidget(self.menu_button)
         
         self._create_dropdown_menu()
         
         # Minimize button
-        minimize_button = QPushButton("-", self.title_bar)
-        minimize_button.setObjectName("syncMinimizeButton")
-        minimize_button.setFixedSize(20, 20)
-        minimize_button.clicked.connect(self.showMinimized)
-        title_layout.addWidget(minimize_button)
+        self.minimize_button = QPushButton("-", self.title_bar)
+        self.minimize_button.setObjectName("syncMinimizeButton")
+        self.minimize_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.minimize_button.clicked.connect(self.showMinimized)
+        title_layout.addWidget(self.minimize_button)
         
         # Close button
-        close_button = QPushButton("X", self.title_bar)
-        close_button.setObjectName("syncCloseButton")
-        close_button.setFixedSize(20, 20)
-        close_button.clicked.connect(self.close)
-        title_layout.addWidget(close_button)
+        self.close_button = QPushButton("X", self.title_bar)
+        self.close_button.setObjectName("syncCloseButton")
+        self.close_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        self.close_button.clicked.connect(self.close)
+        title_layout.addWidget(self.close_button)
     
     def _create_dropdown_menu(self):
         """Create dropdown menu with opacity slider and persistent window toggle"""
@@ -250,8 +253,8 @@ class SyncWindow(QMainWindow):
         # Add Opacity Slider
         opacity_widget = QWidget()
         opacity_layout = QVBoxLayout(opacity_widget)
-        opacity_layout.setContentsMargins(10, 5, 10, 5)
-        opacity_layout.setSpacing(5)
+        opacity_layout.setContentsMargins(int(10 * self.dpi_scale), int(5 * self.dpi_scale), int(10 * self.dpi_scale), int(5 * self.dpi_scale))
+        opacity_layout.setSpacing(int(5 * self.dpi_scale))
         
         opacity_label = QLabel("Window Opacity")
         opacity_label.setStyleSheet(f"color: {COLORS['text']}; font-weight: bold;")
@@ -289,11 +292,53 @@ class SyncWindow(QMainWindow):
         """Update the dpi_scale and refresh all UI elements"""
         self.dpi_scale = new_scale
         
+        # Update window size
+        self.setGeometry(self.x(), self.y(), int(350 * self.dpi_scale), int(810 * self.dpi_scale))
+        
         if hasattr(self, 'title_bar'):
             self.title_bar.setFixedHeight(int(30 * self.dpi_scale))
+            # Update title label font
+            for child in self.title_bar.findChildren(QLabel):
+                if child.objectName() == "syncTitleLabel":
+                    child.setFont(QFont("Segoe UI", int(10 * self.dpi_scale), QFont.Bold))
         
         if hasattr(self, 'menu_button'):
             self.menu_button.setFixedSize(int(25 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'minimize_button'):
+            self.minimize_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        if hasattr(self, 'close_button'):
+            self.close_button.setFixedSize(int(20 * self.dpi_scale), int(20 * self.dpi_scale))
+        
+        # Update player list widget
+        if hasattr(self, 'player_list_widget'):
+            self.player_list_widget.setMinimumHeight(int(50 * self.dpi_scale))
+            # Remove maximum height to allow scaling down
+            for child in self.player_list_widget.findChildren(QLabel):
+                if child == self.player_list_widget.players_label:
+                    child.setFont(QFont("Segoe UI", int(8 * self.dpi_scale)))
+                else:
+                    child.setFont(QFont("Segoe UI", int(9 * self.dpi_scale), QFont.Bold))
+        
+        # Update room widgets
+        if hasattr(self, 'room_widgets'):
+            for room_widget in self.room_widgets:
+                room_widget.setMinimumHeight(int(140 * self.dpi_scale))
+                # Remove maximum height to allow scaling down
+                
+                if hasattr(room_widget, 'room_name_label'):
+                    room_widget.room_name_label.setFont(QFont("Segoe UI", int(10 * self.dpi_scale), QFont.Bold))
+                if hasattr(room_widget, 'players_label'):
+                    room_widget.players_label.setFont(QFont("Segoe UI", int(8 * self.dpi_scale)))
+                
+                if hasattr(room_widget, 'image_label'):
+                    scaled_width = int(300 * self.dpi_scale)
+                    scaled_height = int(70 * self.dpi_scale)
+                    room_widget.image_label.setMinimumHeight(scaled_height)
+                    room_widget.image_label.setMaximumHeight(scaled_height)
+                    room_widget.image_label.setMinimumWidth(scaled_width)
+                    room_widget.image_label.setMaximumWidth(scaled_width)
         
         style = {
             "styles": {
@@ -394,8 +439,19 @@ class SyncWindow(QMainWindow):
                 return
         super().mousePressEvent(event)
     
+    def enterEvent(self, event):
+        """Restore normal cursor when entering the sync window"""
+        # Restore any application-wide cursor override from the main window
+        while QApplication.overrideCursor() is not None:
+            QApplication.restoreOverrideCursor()
+        super().enterEvent(event)
+    
     def mouseMoveEvent(self, event):
         """Handle mouse move for window dragging"""
+        # Ensure cursor is normal while over sync window
+        while QApplication.overrideCursor() is not None:
+            QApplication.restoreOverrideCursor()
+        
         if self.dragging and self.drag_position is not None:
             self.move(event.globalPos() - self.drag_position)
             event.accept()
@@ -438,13 +494,13 @@ class SyncWindow(QMainWindow):
         """Create a single room widget with room name, players, and image."""
         widget = QWidget()
         widget.setObjectName("roomWidget")
-        widget.setMinimumHeight(140)
-        widget.setMaximumHeight(140)
+        widget.setMinimumHeight(int(140 * self.dpi_scale))
+        # Remove maximum height to allow scaling down
         
         # Create layout for this room widget
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(5)
+        layout.setContentsMargins(int(8 * self.dpi_scale), int(8 * self.dpi_scale), int(8 * self.dpi_scale), int(8 * self.dpi_scale))
+        layout.setSpacing(int(5 * self.dpi_scale))
         
         # Room name
         room_name_label = QLabel(f"Room Name {room_number}")
@@ -466,10 +522,10 @@ class SyncWindow(QMainWindow):
         image_label = QLabel("No Image")
         image_label.setObjectName("roomImage")
         image_label.setAlignment(Qt.AlignCenter)
-        image_label.setMinimumHeight(70)
-        image_label.setMaximumHeight(70)
-        image_label.setMinimumWidth(300)
-        image_label.setMaximumWidth(300)
+        image_label.setMinimumHeight(int(70 * self.dpi_scale))
+        image_label.setMaximumHeight(int(70 * self.dpi_scale))
+        image_label.setMinimumWidth(int(300 * self.dpi_scale))
+        image_label.setMaximumWidth(int(300 * self.dpi_scale))
         image_label.setScaledContents(False)
         image_label.setSizePolicy(image_label.sizePolicy().horizontalPolicy(), image_label.sizePolicy().verticalPolicy())
         layout.addWidget(image_label)
@@ -498,17 +554,19 @@ class SyncWindow(QMainWindow):
                 pixmap = QPixmap()
                 pixmap.loadFromData(image_data)
                 # Scale to fill width and crop vertically
+                scaled_width = int(300 * self.dpi_scale)
+                scaled_height = int(70 * self.dpi_scale)
                 scaled_pixmap = pixmap.scaled(
-                    300,
-                    70,
+                    scaled_width,
+                    scaled_height,
                     Qt.KeepAspectRatioByExpanding,
                     Qt.SmoothTransformation
                 )
                 # Crop the image if it's taller than needed
-                if scaled_pixmap.height() > 70:
+                if scaled_pixmap.height() > scaled_height:
                     # Center crop vertically
-                    y_offset = (scaled_pixmap.height() - 70) // 2
-                    scaled_pixmap = scaled_pixmap.copy(0, y_offset, 300, 70)
+                    y_offset = (scaled_pixmap.height() - scaled_height) // 2
+                    scaled_pixmap = scaled_pixmap.copy(0, y_offset, scaled_width, scaled_height)
                 widget.image_label.setPixmap(scaled_pixmap)
             else:
                 widget.image_label.setText("No Image")

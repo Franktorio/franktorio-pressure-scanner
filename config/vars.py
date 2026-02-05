@@ -18,7 +18,7 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-VERSION = "3.5.8" # Application Version
+VERSION = "3.5.9" # Application Version
 
 # API Base URL for the application
 API_BASE_URL='https://nxgfwt5dei.execute-api.ca-central-1.amazonaws.com'

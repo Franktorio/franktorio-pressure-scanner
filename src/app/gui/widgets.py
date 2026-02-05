@@ -382,6 +382,7 @@ class WidgetSetupMixin:
         self.title_label = ElidedLabel(f"Franktorio's Research Scanner", self.title_bar)
         self.title_label.setObjectName("titleBarLabel")
         self.title_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        self.title_label.setTextInteractionFlags(Qt.NoTextInteraction)
 
         font = QFont("OCR A Extended", int(12 * self.dpi_scale), QFont.Bold)
         font.setLetterSpacing(QFont.AbsoluteSpacing, 1.6 * self.dpi_scale)  # spacing in pixels

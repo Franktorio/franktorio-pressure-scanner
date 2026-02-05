@@ -243,8 +243,14 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         self.total_images_expected = 0  # Track total expected images for counter
         self.time_between_image_changes = 3 # Seconds
         self.last_image_change_time = datetime.datetime.now().timestamp()
-        self.rotating_images_enabled = False  # Start with rotating disabled
+        
+        # Load saved rotating images preference
+        self.rotating_images_enabled = get_value_from_config("rotating_images_enabled", False)
         self.current_room_name = None  # Track which room's images are currently being downloaded
+
+        # Update button text based on loaded preference
+        if hasattr(self, 'toggle_rotating_images_button'):
+            self.toggle_rotating_images_button.setText("Rotating Images: ON" if self.rotating_images_enabled else "Rotating Images: OFF")
 
         self.rotating_image_thread = threading.Thread(target=self._rotating_image_worker, daemon=True)
         self.rotating_image_thread.start()  # Start the thread
@@ -524,6 +530,10 @@ class MainWindow(WindowControlsMixin, WidgetSetupMixin, QMainWindow):
         """Slot to handle toggle rotating images button click"""
         self.rotating_images_enabled = not self.rotating_images_enabled
         self.toggle_rotating_images_button.setText("Rotating Images: ON" if self.rotating_images_enabled else "Rotating Images: OFF")
+        
+        # Save preference to config
+        set_value_in_config("rotating_images_enabled", self.rotating_images_enabled)
+        
         if self.rotating_images_enabled:
             self.last_image_change_time = datetime.datetime.now().timestamp()
     
